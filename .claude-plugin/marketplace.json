@@ -1,0 +1,13 @@
+{
+  "name": "daybook",
+  "owner": { "name": "Muhammad Zeeshan" },
+  "plugins": [
+    {
+      "name": "daybook",
+      "source": "./",
+      "description": "A panel beside Claude Code: what needs you, your PRs, tickets, questions and time, in one place.",
+      "version": "0.3.0",
+      "license": "MIT"
+    }
+  ]
+}

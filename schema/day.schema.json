@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Zeeshan138063/daybook/main/schema/day.schema.json",
+  "title": "Daybook day file",
+  "description": "One working day's facts, written by the collectors and read by the panel and the skills. Version 1: today's shape, before the provider layer renames the sections by category.",
+  "type": "object",
+  "required": [
+    "day",
+    "gathered_at",
+    "sources"
+  ],
+  "properties": {
+    "day": {
+      "type": "string",
+      "format": "date"
+    },
+    "gathered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "One entry per source the gather tried; ok false means not checked."
+    },
+    "github": {
+      "type": "object",
+      "properties": {
+        "login": {
+          "type": "string"
+        },
+        "prs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "number",
+              "url",
+              "state",
+              "tickets"
+            ],
+            "properties": {
+              "number": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "OPEN",
+                  "MERGED",
+                  "CLOSED"
+                ]
+              },
+              "mergedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reviewDecision": {
+                "type": "string"
+              },
+              "tickets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "comments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/comment"
+                }
+              },
+              "inline_comments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/comment"
+                }
+              },
+              "reviews": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "by": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "jira": {
+      "type": "object",
+      "description": "The ticket tracker's facts (named jira in version 1 whatever the tracker).",
+      "properties": {
+        "logged_today_minutes": {
+          "type": "integer"
+        },
+        "week_minutes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "tickets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "summary",
+              "status",
+              "worklogs_today"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "start_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "due_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "worklogs_today": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "seconds"
+                  ],
+                  "properties": {
+                    "seconds": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "board": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "summary",
+              "status"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "area": {
+                "type": "string"
+              },
+              "assignee": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "due_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "teams": {
+      "type": "object",
+      "description": "The chat's facts (named teams in version 1 whatever the chat).",
+      "properties": {
+        "questions": {
+          "type": "array"
+        },
+        "asks_for_me": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "from",
+              "text"
+            ],
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "tests": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "comment": {
+      "type": "object",
+      "required": [
+        "by",
+        "at"
+      ],
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

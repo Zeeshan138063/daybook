@@ -1,0 +1,618 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Zeeshan138063/daybook/main/schema/config.schema.json",
+  "title": "Daybook config",
+  "description": "Everything personal: who you are, your tools, your rules. Kept in your home folder, never in the repository.",
+  "type": "object",
+  "required": [
+    "ledger_dir",
+    "day_min_minutes",
+    "day_max_minutes"
+  ],
+  "properties": {
+    "me": {
+      "type": "string",
+      "description": "Your name as your tools show it."
+    },
+    "call_me": {
+      "type": "string",
+      "description": "The name the greeting uses; default the first word of me."
+    },
+    "reviewer": {
+      "type": "string",
+      "description": "Who reviews your work; labels and drafts use the first name."
+    },
+    "watch_people": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "People whose chat messages the gather reads."
+    },
+    "ledger_dir": {
+      "type": "string",
+      "description": "Where the day files go. ~ is expanded.",
+      "default": "~/daybook-ledger"
+    },
+    "ledger_keep_days": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 60
+    },
+    "questions_file": {
+      "type": "string",
+      "description": "Your open questions; default <ledger_dir>/questions.json."
+    },
+    "gather_command": {
+      "type": "string",
+      "default": "~/.claude/daybook/gather.sh",
+      "description": "The shell command the Refresh button runs."
+    },
+    "day_min_minutes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The least a working day should carry, in minutes."
+    },
+    "day_max_minutes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The most a working day should carry, in minutes."
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "enum": [
+                "github",
+                "gitlab",
+                "bitbucket",
+                "none"
+              ],
+              "description": "Where your code and pull requests live."
+            },
+            "via": {
+              "enum": [
+                "cli",
+                "api",
+                "connector"
+              ],
+              "description": "How it is reached: a CLI's own login, an API token, or a Claude connector."
+            },
+            "site": {
+              "type": "string",
+              "format": "uri",
+              "description": "Base URL, where the tool has one (Jira, GitLab self-hosted)."
+            },
+            "url_template": {
+              "type": "string",
+              "description": "A ticket's link: {site}, {key} and {number} are filled in."
+            },
+            "project": {
+              "type": "string"
+            },
+            "token": {
+              "description": "Never the token itself: where to find it.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "env"
+                  ],
+                  "properties": {
+                    "env": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "keychain"
+                  ],
+                  "properties": {
+                    "keychain": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "tickets": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "enum": [
+                "jira",
+                "linear",
+                "github_issues",
+                "gitlab_issues",
+                "none"
+              ],
+              "description": "Your ticket tracker."
+            },
+            "via": {
+              "enum": [
+                "cli",
+                "api",
+                "connector"
+              ],
+              "description": "How it is reached: a CLI's own login, an API token, or a Claude connector."
+            },
+            "site": {
+              "type": "string",
+              "format": "uri",
+              "description": "Base URL, where the tool has one (Jira, GitLab self-hosted)."
+            },
+            "url_template": {
+              "type": "string",
+              "description": "A ticket's link: {site}, {key} and {number} are filled in."
+            },
+            "project": {
+              "type": "string"
+            },
+            "token": {
+              "description": "Never the token itself: where to find it.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "env"
+                  ],
+                  "properties": {
+                    "env": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "keychain"
+                  ],
+                  "properties": {
+                    "keychain": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "search_url_template": {
+              "type": "string",
+              "description": "A link to several tickets at once: {site} and {keys} (comma-separated) are filled in."
+            }
+          }
+        },
+        "chat": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "enum": [
+                "teams",
+                "slack",
+                "none"
+              ],
+              "description": "Your team chat."
+            },
+            "via": {
+              "enum": [
+                "cli",
+                "api",
+                "connector"
+              ],
+              "description": "How it is reached: a CLI's own login, an API token, or a Claude connector."
+            },
+            "site": {
+              "type": "string",
+              "format": "uri",
+              "description": "Base URL, where the tool has one (Jira, GitLab self-hosted)."
+            },
+            "url_template": {
+              "type": "string",
+              "description": "A ticket's link: {site}, {key} and {number} are filled in."
+            },
+            "project": {
+              "type": "string"
+            },
+            "token": {
+              "description": "Never the token itself: where to find it.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "env"
+                  ],
+                  "properties": {
+                    "env": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "keychain"
+                  ],
+                  "properties": {
+                    "keychain": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "compose_url": {
+              "type": "string",
+              "description": "A link that opens a chat to a person with text typed in: {email} and {text} are filled in. Teams has a default."
+            },
+            "questions": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Rules for what never counts as a question.",
+              "properties": {
+                "ignore_prefixes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "A message from you that starts with one of these is not a question (a status post, for example)."
+                },
+                "ignore_chats": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Chat ids whose messages are never questions (a standup group, for example)."
+                }
+              }
+            }
+          }
+        },
+        "mail": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "enum": [
+                "outlook",
+                "gmail",
+                "none"
+              ],
+              "description": "Your mail and calendar."
+            },
+            "via": {
+              "enum": [
+                "cli",
+                "api",
+                "connector"
+              ],
+              "description": "How it is reached: a CLI's own login, an API token, or a Claude connector."
+            },
+            "site": {
+              "type": "string",
+              "format": "uri",
+              "description": "Base URL, where the tool has one (Jira, GitLab self-hosted)."
+            },
+            "url_template": {
+              "type": "string",
+              "description": "A ticket's link: {site}, {key} and {number} are filled in."
+            },
+            "project": {
+              "type": "string"
+            },
+            "token": {
+              "description": "Never the token itself: where to find it.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "env"
+                  ],
+                  "properties": {
+                    "env": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "keychain"
+                  ],
+                  "properties": {
+                    "keychain": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "time": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "enum": [
+                "jira_worklogs",
+                "tempo",
+                "toggl",
+                "harvest",
+                "none"
+              ],
+              "description": "Where time is logged."
+            },
+            "via": {
+              "enum": [
+                "cli",
+                "api",
+                "connector"
+              ],
+              "description": "How it is reached: a CLI's own login, an API token, or a Claude connector."
+            },
+            "site": {
+              "type": "string",
+              "format": "uri",
+              "description": "Base URL, where the tool has one (Jira, GitLab self-hosted)."
+            },
+            "url_template": {
+              "type": "string",
+              "description": "A ticket's link: {site}, {key} and {number} are filled in."
+            },
+            "project": {
+              "type": "string"
+            },
+            "token": {
+              "description": "Never the token itself: where to find it.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "env"
+                  ],
+                  "properties": {
+                    "env": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "keychain"
+                  ],
+                  "properties": {
+                    "keychain": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "docs": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "enum": [
+                "claude_docs",
+                "markdown",
+                "confluence",
+                "notion",
+                "none"
+              ],
+              "description": "Where the scrum log goes."
+            },
+            "via": {
+              "enum": [
+                "cli",
+                "api",
+                "connector"
+              ],
+              "description": "How it is reached: a CLI's own login, an API token, or a Claude connector."
+            },
+            "site": {
+              "type": "string",
+              "format": "uri",
+              "description": "Base URL, where the tool has one (Jira, GitLab self-hosted)."
+            },
+            "url_template": {
+              "type": "string",
+              "description": "A ticket's link: {site}, {key} and {number} are filled in."
+            },
+            "project": {
+              "type": "string"
+            },
+            "token": {
+              "description": "Never the token itself: where to find it.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "env"
+                  ],
+                  "properties": {
+                    "env": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "keychain"
+                  ],
+                  "properties": {
+                    "keychain": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "default": "#0f9d8a"
+        }
+      }
+    },
+    "people": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "format": "email"
+      },
+      "description": "Name → email, used for the chat's 'Send in …' link, which opens a chat with that person and the question typed in. Nothing is sent until you press send."
+    },
+    "questions_since": {
+      "type": "string",
+      "format": "date",
+      "description": "Where the first chat fetch starts, before the questions file has a cursor."
+    },
+    "questions_command": {
+      "type": "string",
+      "description": "How the agent runs the questions merge. Default: sh <repo>/scripts/questions.sh"
+    },
+    "actions": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The panel's action bar. Empty by default: add the commands you have.",
+      "properties": {
+        "primary": {
+          "type": "object",
+          "required": [
+            "label",
+            "command"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string",
+              "description": "A slash command you have, usually a skill, e.g. /timesheet."
+            },
+            "hint": {
+              "type": "string",
+              "description": "Text under the button; {reviewer} and {next_ticket} are filled in."
+            }
+          }
+        },
+        "buttons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "label",
+              "command"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string",
+                "description": "A slash command you have, usually a skill, e.g. /timesheet."
+              },
+              "hint": {
+                "type": "string",
+                "description": "Text under the button; {reviewer} and {next_ticket} are filled in."
+              }
+            }
+          }
+        },
+        "time_short": {
+          "type": "string",
+          "description": "The command offered when today's time is short, e.g. /timesheet."
+        }
+      }
+    },
+    "schedule": {
+      "type": "array",
+      "description": "Commands run once a working day, within 30 minutes of the time.",
+      "items": {
+        "type": "object",
+        "required": [
+          "at",
+          "commands"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "type": "string",
+            "pattern": "^\\d{1,2}:\\d{2}$"
+          },
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "refresh_command": {
+      "type": "string",
+      "description": "What Refresh runs after the shell gather, for chat and mail. Default /daybook-refresh when chat or mail is set."
+    }
+  },
+  "additionalProperties": true
+}

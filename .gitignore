@@ -1,0 +1,11 @@
+.claude-plugin/types/
+node_modules/
+.DS_Store
+# personal data never belongs here: config, day files, questions
+config.local.json
+*.ledger.json
+.privacy-words
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.privacy-allow

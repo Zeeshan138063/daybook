@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Daybook questions file",
+  "description": "Written by collectors/daybook_collect/questions.py and the panel's buttons. One entry per question asked in chat.",
+  "type": "object",
+  "required": [
+    "questions"
+  ],
+  "properties": {
+    "scanned_until": {
+      "type": "string",
+      "description": "How far the chat fetch has read (ISO time)."
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "topic",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The chat message id, plus #n for the n-th numbered question in one message."
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "chat_id": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "to": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "to_send",
+              "waiting",
+              "answered"
+            ]
+          },
+          "asked_at": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answered_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answered_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "teams-quote",
+              "teams-reply",
+              "jira",
+              "manual"
+            ]
+          },
+          "answer_url": {
+            "type": "string"
+          },
+          "override": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "answered",
+                  "not_question"
+                ]
+              },
+              "at": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

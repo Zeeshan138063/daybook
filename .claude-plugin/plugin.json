@@ -1,0 +1,7 @@
+{
+  "name": "daybook",
+  "version": "0.3.0",
+  "description": "Daybook: a panel beside Claude Code with what needs you, your PRs, tickets, questions and time, gathered from GitHub, Jira, Teams and Outlook, read-only.",
+  "types": "./types/index.d.ts",
+  "license": "MIT"
+}

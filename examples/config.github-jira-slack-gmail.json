@@ -1,0 +1,47 @@
+{
+  "me": "Alex Example",
+  "reviewer": "Sam Reviewer",
+  "watch_people": [
+    "Sam Reviewer"
+  ],
+  "ledger_dir": "~/daybook-ledger",
+  "ledger_keep_days": 60,
+  "gather_command": "~/.claude/daybook/gather.sh",
+  "day_min_minutes": 450,
+  "day_max_minutes": 510,
+  "providers": {
+    "code": {
+      "type": "github",
+      "via": "cli"
+    },
+    "tickets": {
+      "type": "jira",
+      "via": "api",
+      "site": "https://your-site.atlassian.net",
+      "project": "PROJ",
+      "url_template": "{site}/browse/{key}",
+      "token": {
+        "env": "JIRA_API_TOKEN"
+      }
+    },
+    "chat": {
+      "type": "slack",
+      "via": "connector"
+    },
+    "mail": {
+      "type": "gmail",
+      "via": "connector"
+    },
+    "time": {
+      "type": "jira_worklogs",
+      "via": "api"
+    },
+    "docs": {
+      "type": "markdown",
+      "via": "cli"
+    }
+  },
+  "ui": {
+    "accent": "#0f9d8a"
+  }
+}
