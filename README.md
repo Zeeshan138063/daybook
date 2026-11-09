@@ -4,6 +4,11 @@
 
 **Your working day, beside Claude Code.**
 
+<p align="center">
+  <img src="docs/images/tour.gif" width="420" alt="A tour of the Daybook panel: what needs you, time today, questions, the board and the connection check">
+  <br><sub>Sample data. Names and messages are made up.</sub>
+</p>
+
 Daybook is a panel that sits next to your Claude Code chat and shows what needs you right now:
 - new review comments on your pull requests;
 - questions you asked that are still waiting for an answer;
@@ -36,6 +41,18 @@ flowchart LR
 
 **Try it in ten seconds:** install it, then type `/daybook demo`. You get a full week of made-up
 data, and none of yours is read.
+
+## See it
+
+| Your day at a glance | Questions that close themselves |
+| --- | --- |
+| <img src="docs/images/panel-dark.png" width="400" alt="The panel: greeting, sources, what needs you, time today and questions"> | <img src="docs/images/questions-dark.png" width="400" alt="Questions to send, waiting with Mark answered and Not a question, and answered with the reply"> |
+| **Any weekday's time** | **The whole board** |
+| <img src="docs/images/time-dark.png" width="400" alt="Time card with Tuesday picked: the ring in range and each ticket's share"> | <img src="docs/images/board-dark.png" width="400" alt="Board filtered to the Backend area with status, who and due date"> |
+| **Check connections** | |
+| <img src="docs/images/doctor-dark.png" width="400" alt="Settings with Check connections: three of four tools ok and the exact fix for the fourth"> | |
+
+<sub>Sample data from `/daybook demo`. Names and messages are made up.</sub>
 
 ## When it runs
 

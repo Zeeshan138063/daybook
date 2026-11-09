@@ -89,6 +89,8 @@ function composeUrl(cfg: Config, to: string, text: string): string {
 }
 
 const STALE_MS = 2 * 60 * 60 * 1000
+// A row under the pointer: a faint grey that reads in light and dark, never washing out the text.
+const ROW_HOVER = '#8080801f'
 const BOARD_PAGE = 10
 const ANSWERED_DAYS = 7
 const DEFAULT_FILTERS: Filters = { area: 'all', status: 'all', search: '', mineOnly: false, showAll: false, page: 0 }
@@ -991,14 +993,22 @@ export const register: Register = on => {
                 <Box flexDirection="column">
                   <Text size="caption" weight="semibold" color="inactive">{`WAITING FOR AN ANSWER (${waitingQs.length})`}</Text>
                   {waitingQs.map(q => (
-                    <Box key={`wait-${q.id}`} flexDirection="column" marginBottom={1} hover={{ backgroundColor: 'subtle' }}>
+                    <Box key={`wait-${q.id}`} flexDirection="column" marginBottom={1} hover={{ backgroundColor: ROW_HOVER }}>
                       <Text wrap="truncate-end">{q.topic}</Text>
                       <Box gap={1} flexWrap="wrap" alignItems="center">
                         <Text size="caption" color="inactive">{[q.to.split(' ')[0], dateTime(q.askedAt)].filter(Boolean).join(' · ')}</Text>
                         {q.ticketLinks.map(t => t.url ? <Link key={`wait-${q.id}-${t.key}`} href={t.url} label={t.key} /> : null)}
                         {q.url && <Link href={q.url} label={`Open in ${v.chatName} ↗`} />}
-                        <Button key={`answered-${q.id}`} label="Mark answered" plain onPress={() => { void setOverride($, q.id, 'answered') }} />
-                        <Button key={`notq-${q.id}`} label="Not a question" plain onPress={() => { void setOverride($, q.id, 'not_question') }} />
+                        <Box borderStyle="round" borderColor="success">
+                          <Button key={`answered-${q.id}`} label="Mark answered" onPress={() => { void setOverride($, q.id, 'answered') }}>
+                            <Text color="success" weight="semibold">✓ Mark answered</Text>
+                          </Button>
+                        </Box>
+                        <Box borderStyle="round" borderColor="warning">
+                          <Button key={`notq-${q.id}`} label="Not a question" onPress={() => { void setOverride($, q.id, 'not_question') }}>
+                            <Text color="warning" weight="semibold">✕ Not a question</Text>
+                          </Button>
+                        </Box>
                       </Box>
                     </Box>
                   ))}
@@ -1049,7 +1059,7 @@ export const register: Register = on => {
               summary={v.prs.map(r => `${r.pr} ${r.review}`).join(' · ')}>
               <Head cols={[['PR', '16%'], ['Tickets', undefined], ['Review', '26%'], ['State', '28%', true]]} />
               {v.prs.map(p => (
-                <Box key={`pr-${p.pr}`} hover={{ backgroundColor: 'subtle' }}>
+                <Box key={`pr-${p.pr}`} hover={{ backgroundColor: ROW_HOVER }}>
                   <Cell w="16%"><Link href={p.url} label={p.pr} /></Cell>
                   <Cell>{p.ticketsUrl ? <Link href={p.ticketsUrl} label={p.tickets} /> : <Text mono size="caption" color="inactive">{p.tickets}</Text>}</Cell>
                   <Cell w="26%">
@@ -1071,7 +1081,7 @@ export const register: Register = on => {
               : [['Key', '8%'], ['Title', undefined], ['Status', '14%'], ['Start', '10%', true], ['Due', '10%', true], ['Today', '11%', true]]} />
             {v.tickets.length === 0 && <Text size="caption" color="inactive">No active tickets.</Text>}
             {v.tickets.map(t => (
-              <Box key={`t-${t.key}`} hover={{ backgroundColor: 'subtle' }}>
+              <Box key={`t-${t.key}`} hover={{ backgroundColor: ROW_HOVER }}>
                 <Cell w={narrow ? '12%' : '8%'}>{t.url ? <Link href={t.url} label={t.key} /> : <Text mono size="caption" color="inactive">{t.key}</Text>}</Cell>
                 <Cell><Text size="caption" wrap="truncate-end">{t.title}</Text></Cell>
                 <Cell w={narrow ? '22%' : '14%'}><Text size="caption" weight="semibold" wrap="truncate-end" color={pillColor(t.tone)}>{`● ${t.status}`}</Text></Cell>
@@ -1114,7 +1124,7 @@ export const register: Register = on => {
               </Box>
               {shown.length === 0 && <Text size="caption" color="inactive">No tickets match.</Text>}
               {page.map(r => (
-                <Box key={`b-${r.key}`} hover={{ backgroundColor: 'subtle' }}>
+                <Box key={`b-${r.key}`} hover={{ backgroundColor: ROW_HOVER }}>
                   <Cell w={narrow ? '12%' : '8%'}><Link href={r.url} label={String(num(r.key))} /></Cell>
                   <Cell><Text size="caption" wrap="truncate-end">{r.title}</Text></Cell>
                   {!narrow && <Cell w="12%"><Text size="caption" color="inactive" wrap="truncate-end">{areaLabel(r.area)}</Text></Cell>}
