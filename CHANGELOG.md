@@ -2,6 +2,11 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## Unreleased
+
+- CI on every pull request: collector tests, lint, the privacy check and the schemas.
+- Pull request and issue templates (bug, new provider).
+
 ## 0.3.0 (first public version)
 
 - The panel: Needs you, Time (day and week, any weekday), Questions, Answered, Pull requests,
