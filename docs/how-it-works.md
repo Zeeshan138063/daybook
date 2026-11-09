@@ -14,7 +14,7 @@ flowchart TB
   subgraph claude[Claude Code]
     PANEL[Daybook panel<br/>hooks/register.tsx]
     AGENT[daybook-gather agent<br/>chat and mail through connectors]
-    SKILLS[/daybook-setup, /daybook-refresh<br/>and your own commands/]
+    SKILLS["/daybook-setup, /daybook-refresh<br/>and your own commands"]
   end
   subgraph local[Your machine]
     GATHER[collectors/daybook_collect<br/>gather.py · doctor.py · questions.py]
