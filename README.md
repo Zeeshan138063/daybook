@@ -5,7 +5,7 @@
 **Your working day, beside Claude Code.**
 
 <p align="center">
-  <img src="docs/images/tour.gif" width="420" alt="A tour of the Daybook panel: what needs you, time today, questions, the board and the connection check">
+  <img src="docs/images/tour.gif" width="620" alt="Daybook in use: the time ring, picking weekdays, marking a question answered, filtering and searching the board, and checking connections">
   <br><sub>Sample data. Names and messages are made up.</sub>
 </p>
 
