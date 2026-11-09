@@ -1,125 +1,206 @@
 # Daybook
 
-**Your working day, beside Claude Code.** One panel that shows what needs you right now: review
-comments on your PRs, questions still waiting for an answer, your tickets, and how much time you've
-logged against the day. It's gathered from the tools you already use, and it only reads.
+[![CI](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml/badge.svg)](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml) ![License: MIT](https://img.shields.io/badge/license-MIT-0f9d8a.svg) ![Version](https://img.shields.io/badge/version-0.3.0-0f9d8a.svg) ![Reads only](https://img.shields.io/badge/your%20tools-read%20only-0f9d8a.svg)
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-0f9d8a.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-0.3.0-0f9d8a.svg)
-![Reads only](https://img.shields.io/badge/your%20tools-read%20only-0f9d8a.svg)
+**Your working day, beside Claude Code.**
 
-> **See it in ten seconds:** install it, then type `/daybook demo`. You get a full week of made-up
-> data, and nothing of yours is read.
+Daybook is a panel that sits next to your Claude Code chat and shows what needs you right now:
+- new review comments on your pull requests;
+- questions you asked that are still waiting for an answer;
+- your tickets;
+- how much time you've logged against the day.
 
----
+It gathers all of this from the tools you already use (GitHub, Jira, Microsoft Teams, Outlook), and it only reads from them.
 
-## Why
+> *daybook* (noun): a book in which the day's business is recorded as it happens.
 
-| Without it | With Daybook |
-|---|---|
-| Six tabs every morning: GitHub, Jira, Teams, Outlook, the timesheet, your notes | One panel, refreshed with one button |
-| "Did they answer my question?" means scrolling chat | Each question is tracked, and closes itself when the reply arrives |
-| A new review comment sits unseen for hours | **Needs you** lists it, with a link |
-| Friday's timesheet is guesswork | Each day's time is already shown against your target range |
-| Standup notes, status update and timesheet tell three different stories | They're all built from the same day file, so they agree |
+If you write code for a living, your day is split across six tabs: the code host, the tracker, chat,
+the calendar, the timesheet and your notes. Review comments sit unseen, questions get lost in chat,
+and on Friday the timesheet is guesswork. Daybook puts the day in one place and keeps it current.
 
-## What you see
+```mermaid
+flowchart LR
+    R[Refresh<br/>or every minute] --> G[Gather, read-only<br/>GitHub · git · Jira]
+    R --> A[Agent, read-only<br/>Teams · Outlook]
+    G --> D[(Day file<br/>one per day)]
+    A --> D
+    A --> Q[Questions merge<br/>tested rules]
+    Q --> QS[(Questions<br/>asked · waiting · answered)]
+    D --> P[Daybook panel]
+    QS --> P
+    P --> N{Needs you?}
+    N -- yes --> Y[Review comments · asks · short day]
+    N -- no --> C[✓ All clear]
+    P --> B[Your buttons<br/>/timesheet · /status · …]
+```
 
-| Card | What it shows |
-|---|---|
-| **Needs you** | New review comments, requested changes, asks aimed at you, and a short day |
-| **Time** | Today against your range, the week as bars, and any weekday picked to see its tickets |
-| **Questions** | What you've asked and who it waits on, with **Open in Teams**. **Mark answered** and **Not a question** can both be undone |
-| **Answered** | Recent answers, with the reply and a link back to it |
-| **Pull requests** | Your open and merged PRs, review state, and their tickets |
-| **Tickets** | Your tickets in development or review, with time logged today |
-| **Board** | Your project's whole board: area, status, search, "mine only", ten rows a page |
-| **Settings** | Which tool fills each part, and **Check connections** with the exact fix for anything off |
+**Try it in ten seconds:** install it, then type `/daybook demo`. You get a full week of made-up
+data, and none of yours is read.
 
-Every card folds. The panel remembers which cards you folded, and its tables drop columns on a narrow pane.
+## When it runs
 
-## Install (two minutes)
+| What | When | What you get |
+| --- | --- | --- |
+| **Refresh** | When you press it | Code, git and tickets straight away, then chat and calendar about a minute later |
+| **Panel reload** | Every minute | The cards follow the day file; a new review comment shows without another click |
+| **Your timed runs** (optional) | The times in your config, once a working day, never at weekends | Your own commands, e.g. `/standup` at 09:00 and `/timesheet` at 17:30 |
+| **Question closing** | Every Refresh | Questions whose answer arrived move to Answered, with the reply and a link |
+| **On demand** | Any time | `/daybook doctor` to check connections, `/daybook demo` to show it to someone |
 
-In Claude Code:
+## What it does
+
+### Your day
+
+| Feature | What you get |
+| --- | --- |
+| **Needs you** | New comments and requested changes on your PRs, asks aimed at you, and a short day. Each has a link or a button |
+| **Time** | Today against your target range as a ring, the week as bars, and any weekday picked to see its tickets |
+| **Greeting and freshness** | When each source was last read; a source more than 2 hours old turns amber |
+| **Your buttons** | An action bar of commands you already have (`/timesheet`, `/status`, …), plus timed runs; you configure both |
+
+### Questions
+
+| Feature | What you get |
+| --- | --- |
+| **Captured once** | Every question you ask in chat, by message id; numbered questions are split into one entry each |
+| **Closes itself** | When a reply quotes it, names its ticket, or a dated "Decided" note lands on the ticket |
+| **Open / Send in Teams** | Jump to the exact message, or open a chat with a drafted question typed in. You press send |
+| **Answered card** | The last 7 days of answers: the reply, who gave it, when, and a link to it |
+| **You stay in charge** | **Mark answered** and **Not a question**, both with **Undo** and **Restore** |
+
+### Code and tickets
+
+| Feature | What you get |
+| --- | --- |
+| **Pull requests** | Your open and recently merged PRs, review state, new comments, and the tickets each covers (one link opens them all) |
+| **Tickets** | Your tickets in development or review, start and due dates, and time logged today |
+| **Board** | The whole project: area, status, search, "mine only", ten rows a page, and narrow-pane friendly |
+
+### Setup and health
+
+| Feature | What you get |
+| --- | --- |
+| **`/daybook-setup`** | Finds the connectors you already have, asks a few questions, writes a schema-valid config, installs the gather agent |
+| **`/daybook doctor`** | One line per tool: a ✔, or the exact command to fix it. It's also in Settings as **Check connections** |
+| **`/daybook demo`** | A week of made-up data that changes nothing, for trying it out and for screenshots |
+
+## Requirements
+
+- **Claude Code**, with plugins.
+- **Python 3.11+**. `uv` is optional (it's used with the jira-agent plugin).
+- **Your tools:**
+  - the GitHub CLI (`gh`);
+  - Jira, through the jira-agent plugin or an API token;
+  - the Microsoft 365 connector in Claude, for Teams and Outlook.
+
+  Every tool is optional except a code host. See [Connect your tools](docs/connect/README.md).
+
+## Install
 
 ```
 /plugin marketplace add Zeeshan138063/daybook
 /plugin install daybook@daybook
 ```
 
-Then:
+## Set up (about 2 minutes)
 
 ```
-/daybook-setup     # finds your connected tools, asks a few questions, writes your config
-/daybook           # opens the panel; press Refresh
-/daybook doctor    # anything not connected, with the exact fix
+/daybook-setup
 ```
 
-Needs: Claude Code, Python 3.11+, and the tools you use (see below). Optional: `uv`.
+It will:
 
-## Connect your tools
+1. See which connectors you already have (Teams, Outlook, …) and suggest them.
+2. Ask up to six things: your name, your reviewer, your repo folders, your tracker, chat and mail,
+   and your day's range.
+3. Work out each repo from its git remote, and write `~/.claude/daybook/config.json`. It keeps any
+   old config as a backup, and never asks for a token.
+4. Install the gather agent with exactly the connector tools you use.
+5. Run the doctor and show what's connected, with the fix for anything that isn't.
 
-| Part | Supported today | How it's reached | You need |
-|---|---|---|---|
-| Code | **GitHub**, plus local git | the `gh` CLI's own sign-in | `gh auth login` |
-| Tickets and time | **Jira** (worklogs) | the jira-agent plugin's sign-in, or an API token kept in an environment variable or the Keychain | your site, e.g. `you.atlassian.net` |
-| Chat | **Microsoft Teams** | the Microsoft 365 connector in Claude | the connector turned on and signed in |
-| Calendar | **Outlook** | the Microsoft 365 connector in Claude | the same connector |
-| Coming | GitLab, Linear, Slack, Gmail and Google Calendar, Toggl | | contributions welcome |
+Then `/daybook` opens the panel; press **Refresh**.
 
-Every tool gets the same three steps: **connect** it (sign in, or turn the connector on), **run
-`/daybook-setup`**, then **check** with `/daybook doctor` until every line has a ✔.
+## Commands
 
-## How it works
+| Command | Use it for |
+| --- | --- |
+| `/daybook` | Open the panel |
+| `/daybook demo` · `/daybook live` | Show made-up data, then go back to yours |
+| `/daybook doctor` | Check every connection |
+| `/daybook-setup` | First-time setup, or changing tools |
+| `/daybook-refresh` | Read chat and calendar now (Refresh runs it for you) |
 
-```mermaid
-flowchart LR
-  subgraph tools[Your tools, read only]
-    GH[GitHub] ; JI[Jira] ; TE[Teams] ; OU[Outlook]
-  end
-  GH & JI -->|scripts/gather.sh| DAY[(day file\n~/daybook-ledger/DATE.json)]
-  TE & OU -->|daybook-gather agent\nthrough Claude connectors| DAY
-  TE -->|chat inbox| MERGE[questions merge\nrules, tested] --> Q[(questions.json)]
-  DAY --> PANEL[Daybook panel]
-  Q --> PANEL
-  PANEL -->|your buttons| CMDS[your commands: /timesheet, /status ...]
-```
+## The panel
 
-- **The day file** is one JSON file per day: the single source the panel and your commands read.
-- **The collectors** are small read-only adapters behind one contract (ports and adapters), so adding a
-  provider means adding one adapter.
-- **Questions** are captured once, by chat message id. A reply that quotes the question closes it,
-  as does one that names its ticket, or a dated "Decided" note on the ticket. The rules are code
-  with tests, not a model's guess.
+| Card | What's there |
+| --- | --- |
+| **Header** | The greeting, the date, when each source was read, **Refresh**, and **Collapse all** |
+| **Needs you** | What's waiting on you, each with a link or a button |
+| **Time** | The day's ring, the week, any weekday's tickets |
+| **Questions** | To send, waiting, and the hidden ones |
+| **Answered** | The last 7 days of answers (folded at first) |
+| **Pull requests** · **Tickets** · **Board** | Your code and tracker, linked |
+| **Settings** | Which tool fills each part, and **Check connections** |
 
-## Configure it
+## Configure
 
-Your config is one JSON file (`~/.claude/daybook/config.json`); `schema/config.schema.json`
-documents every key, and `/daybook-setup` writes it for you. The action bar is yours to define:
+Everything lives in one file, `~/.claude/daybook/config.json`; [Configuration](docs/configuration.md)
+lists every key. Your buttons, for example:
 
 ```json
 "actions": {
   "primary": { "label": "Propose timesheet", "command": "/timesheet" },
-  "buttons": [
-    { "label": "Draft status", "command": "/status", "hint": "for {reviewer}" },
-    { "label": "Start ticket", "command": "/start", "hint": "next {next_ticket}" }
-  ],
-  "time_short": "/timesheet"
+  "buttons": [{ "label": "Draft status", "command": "/status", "hint": "for {reviewer}" }]
 },
 "schedule": [{ "at": "17:30", "commands": ["/timesheet"] }]
 ```
 
-## Privacy
+## Privacy and safety
 
-- **Only reads.** It never posts, comments, moves a ticket or sends a message.
+- **Reads only.** It never posts, comments, moves a ticket, logs time or sends a message. Your
+  buttons run commands you chose, and those ask before they write.
 - **Stays on your machine.** The config, day files and questions are local files, and there's no server.
-- **No secrets in config.** A token is referenced by where it lives, never written down.
-- **Safe screenshots.** `/daybook demo` uses invented names (Alex Example, PROJ-123, example.com)
-  so you can share images freely.
+- **No secrets in config.** A token is named by where it lives (`{"env": …}` or `{"keychain": …}`).
+- **Safe to show.** Demo mode uses invented names only.
+
+## Limits
+
+- **Tools supported today:** GitHub, Jira, Teams and Outlook.
+- **Chat and calendar lag a little:** they go through Claude connectors, which only an agent can
+  use, so they fill in about a minute after Refresh.
+- **Unquoted answers:** a question closes when its answer quotes it or names its ticket. Others need **Mark answered**.
+- **Panel tests run locally:** they need the Claude Code engine, so CI runs only the Python checks.
+
+## Roadmap
+
+- **More tools:** GitLab, Linear, Slack, Gmail and Google Calendar, Toggl.
+- **For PRs:** a review checklist that ticks itself off as commits land, CI status per PR, and a stale-branch warning.
+- **For the day:** a resume card ("where you left off"), a day replay with evidence for each worklog, and a handoff pack.
+- **For questions:** a decision register built from answered questions, and "ask once", which checks past answers before you ask again.
+
+## Learn more
+
+- [How it works](docs/how-it-works.md): the architecture, the data flow and the data model.
+- [How questions are tracked](docs/questions.md).
+- [Connect your tools](docs/connect/README.md): one card per tool.
+- [Configuration](docs/configuration.md).
+- [Troubleshooting](docs/troubleshooting.md): every doctor message and its fix.
+
+## Repository layout
+
+```
+hooks/            the panel (register.tsx), demo data, panel tests
+collectors/       read-only adapters behind one contract, plus questions, doctor, tests
+agents/           the gather agent's template and per-tool sections
+skills/           /daybook-setup and /daybook-refresh
+schema/           config, day file and questions, as JSON Schema
+scripts/          setup, doctor, gather, privacy check
+docs/             these guides
+```
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). New providers are the most wanted.
+See [CONTRIBUTING.md](CONTRIBUTING.md). New tools are the most wanted contributions.
 [SECURITY.md](SECURITY.md) says how to report a problem privately.
 
 ## License
