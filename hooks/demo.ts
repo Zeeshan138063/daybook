@@ -110,15 +110,17 @@ export function demoLedger(day: string) {
       reviews: [{ by: 'sam-reviewer', state: 'APPROVED', at: at(day, '08:45') }],
     },
   ]
-  const ok = { ok: true, at: at(day, '11:02') }
+  // Read a few minutes ago today, so the sources look fresh in a screenshot at any hour.
+  const fresh = isToday ? new Date(Date.now() - 4 * 60_000).toISOString() : at(day, '17:45')
+  const ok = { ok: true, at: fresh }
   return {
-    day, gathered_at: at(day, '11:02'),
+    day, gathered_at: fresh,
     sources: { github: ok, git: ok, jira: ok, teams: ok, outlook: ok },
     github: { login: 'alex-example', prs },
     jira: { tickets, board, logged_today_minutes: logged, week_minutes },
     teams: {
       asks_for_me: [{ from: 'Robin Example', text: 'Can you pair on the import edge cases after lunch?',
-        url: 'https://teams.microsoft.com/l/chat/0/0?users=robin@example.com' }],
+        url: 'https://teams.microsoft.com/l/chat/0/0?users=robin%40example.com' }],
     },
   }
 }

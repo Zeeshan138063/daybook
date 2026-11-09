@@ -6,6 +6,9 @@ All notable changes are listed here. Versions follow [semantic versioning](https
 
 - CI on every pull request: collector tests, lint, the privacy check and the schemas.
 - Pull request and issue templates (bug, new provider).
+- Documentation: a rebuilt README, How it works (architecture, data flow, data model), how questions
+  are tracked, a card per tool to connect, every config key, and troubleshooting for each doctor
+  message. Release notes for v0.3.0.
 
 ## 0.3.0 (first public version)
 
