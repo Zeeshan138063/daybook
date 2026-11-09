@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Tests, lint and privacy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Collector tests (setup, doctor, questions, adapters)
+        run: uvx --with pytest --with jsonschema pytest -q
+      - name: Lint
+        run: uvx ruff check .
+      - name: Privacy check (no home paths, no tokens)
+        run: sh scripts/privacy-check.sh
+      - name: Schemas are valid JSON Schema
+        run: |
+          uvx --with jsonschema python - <<'PY'
+          import json, pathlib, jsonschema
+          for p in sorted(pathlib.Path("schema").glob("*.json")):
+              jsonschema.Draft202012Validator.check_schema(json.loads(p.read_text()))
+              print("ok", p)
+          PY
