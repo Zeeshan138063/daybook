@@ -20,7 +20,7 @@ sh scripts/privacy-check.sh                      # no personal data, no secrets
 2. One line in `registry.py`.
 3. The type in `schema/config.schema.json`.
 4. Tests with the tool stubbed (no network in tests).
-5. For a chat or mail tool reached through a Claude connector: a section in `agents/sections/`.
+5. For a chat or mail tool reached through a Claude connector: a section in `agent-templates/sections/`.
 
 ## Rules
 

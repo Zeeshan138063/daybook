@@ -485,18 +485,17 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 // One ticket's bar, sized to its share of the day's largest, sliding in after the rows above it; its
 // time fades in at the end. The ticket number beside it is a Link, since a drawing can't be clicked.
 const ROW_H = 20
-const BARS_W = 280
+// One ticket's bar. It scales to the room left in its row (no fixed width), so it never pushes the
+// row past the card; the time is drawn beside it as text, so it is never the part that gets cut.
+const BAR_VB = 200
 function ticketBar(r: TicketTime, i: number, most: number): string {
-  const x1 = BARS_W - 56
-  const w = Math.max((r.minutes / Math.max(most, 1)) * x1, 3)
+  const w = Math.max((r.minutes / Math.max(most, 1)) * BAR_VB, 3)
   const begin = `${(0.1 + i * 0.06).toFixed(2)}s`
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${BARS_W}" height="${ROW_H}" viewBox="0 0 ${BARS_W} ${ROW_H}">` +
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${BAR_VB} ${ROW_H}" preserveAspectRatio="none">` +
     `<title>${esc(r.id)} · ${esc(r.title)} · ${fmt(r.minutes)}</title>` +
-    `<rect x="0" y="5" width="${x1}" height="10" rx="5" fill="#8a8f98" fill-opacity="0.12"/>` +
+    `<rect x="0" y="5" width="${BAR_VB}" height="10" rx="5" fill="#8a8f98" fill-opacity="0.12"/>` +
     `<rect x="0" y="5" width="0" height="10" rx="5" fill="${TEAL}" fill-opacity="${i === 0 ? 1 : 0.75}">` +
-    `<animate attributeName="width" from="0" to="${w.toFixed(1)}" begin="${begin}" dur="0.6s" calcMode="spline" keySplines="0.2 0.8 0.2 1" keyTimes="0;1" fill="freeze"/></rect>` +
-    `<text x="${BARS_W}" y="14" text-anchor="end" font-size="12" font-family="system-ui, sans-serif" fill="#8a8f98" opacity="0">${fmt(r.minutes)}` +
-    `<animate attributeName="opacity" from="0" to="1" begin="${begin}" dur="0.4s" fill="freeze"/></text></svg>`
+    `<animate attributeName="width" from="0" to="${w.toFixed(1)}" begin="${begin}" dur="0.6s" calcMode="spline" keySplines="0.2 0.8 0.2 1" keyTimes="0;1" fill="freeze"/></rect></svg>`
 }
 
 const questionsPath = (cfg: Config) => cfg.questions_file ?? `${cfg.ledger_dir}/questions.json`
@@ -837,6 +836,8 @@ export const register: Register = on => {
     )
     // Responsive: a narrow pane (a terminal split, a phone) drops the columns it can live without.
     const narrow = (e.viewport?.columns ?? 999) < 72
+    // The Time card puts its ticket list under the ring when there is no room beside it.
+    const stackTime = (e.viewport?.columns ?? 999) < 90
     const pillColor = (tone: TicketRow['tone']) =>
       tone === 'dev' ? 'suggestion' : tone === 'review' ? 'merged' : tone === 'qa' ? 'success' : 'inactive'
     // The Time card shows the picked day, else today.
@@ -917,24 +918,29 @@ export const register: Register = on => {
             {pick?.missing ? (
               <Text color="inactive">No data for this day.</Text>
             ) : (
-              <Box gap={2} alignItems="center">
+              <Box gap={2} alignItems={stackTime ? 'stretch' : 'center'} flexDirection={stackTime ? 'column' : 'row'}>
+                <Box gap={2} alignItems="center" flexShrink={0}>
                 {Svg && <Svg key={`ring-${dayShown}-${logged}`} source={ring(logged, v.minMinutes, v.maxMinutes)} alt={`${fmt(logged)} of ${fmt(v.minMinutes)} to ${fmt(v.maxMinutes)}`} width={84} height={84} isInteractive />}
-                <Box flexDirection="column">
-                  <Text size="title" weight="bold" tabular>{fmt(logged)}</Text>
+                <Box flexDirection="column" flexShrink={0}>
+                  <Text size="title" weight="bold" tabular wrap="truncate-end">{fmt(logged)}</Text>
                   <Text size="caption" color="inactive" tabular>{`of ${fmt(v.minMinutes)} – ${fmt(v.maxMinutes)}`}</Text>
                   <Text size="caption" weight="semibold" color={inRange ? 'success' : pct < 1 ? 'warning' : 'error'}>
                     {inRange ? '✓ In range' : pct < 1 ? `${fmt(v.minMinutes - logged)} ${pick ? 'short' : 'to go'}` : `${fmt(logged - v.maxMinutes)} over`}
                   </Text>
                 </Box>
-                <Box flexDirection="column" flexGrow={1}>
+                </Box>
+                <Box flexDirection="column" flexGrow={1} minWidth={0}>
                   {perTicket.length === 0 && <Text size="caption" color="inactive">Nothing logged.</Text>}
                   {perTicket.map((t, i) => (
-                    <Box key={`t-${dayShown}-${t.key}`} gap={1} alignItems="center" justifyContent="flex-start">
+                    <Box key={`t-${dayShown}-${t.key}`} gap={1} alignItems="center">
                       <Box width={5} flexShrink={0}>{t.url ? <Link href={t.url} label={t.key} /> : <Text size="caption" mono>{t.key}</Text>}</Box>
-                      {Svg
-                        ? <Svg key={`bar-${dayShown}-${t.key}-${t.minutes}`} source={ticketBar(t, i, perTicket[0]?.minutes ?? 1)}
-                            alt={`${t.id} ${fmt(t.minutes)}`} width={BARS_W} height={ROW_H} isInteractive />
-                        : <Text size="caption" tabular>{fmt(t.minutes)}</Text>}
+                      <Box flexGrow={1} minWidth={0}>
+                        {Svg && <Svg key={`bar-${dayShown}-${t.key}-${t.minutes}`} source={ticketBar(t, i, perTicket[0]?.minutes ?? 1)}
+                          alt={`${t.id} ${fmt(t.minutes)}`} height={ROW_H} isInteractive />}
+                      </Box>
+                      <Box width={7} flexShrink={0} justifyContent="flex-end">
+                        <Text size="caption" color="inactive" tabular>{fmt(t.minutes)}</Text>
+                      </Box>
                     </Box>
                   ))}
                 </Box>
