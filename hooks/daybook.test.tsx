@@ -521,6 +521,25 @@ test('a narrow pane drops the Area and Who columns; a wide one keeps them', asyn
   expect(await heads(140)).toEqual(['Area', 'Who'])
 })
 
+test('the Time card keeps each ticket time as text, in a narrow pane and a wide one', async ($, on) => {
+  on('command.register', () => ({ value: { command: 'daybook' } }))
+  on('env.get', (_, e) => ({ value: e.name === 'HOME' ? '/home/test' : undefined }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('fs.read', (_, e) => ({ value: e.path.endsWith('config.json') ? JSON.stringify(CONFIG) : JSON.stringify(LEDGER) }))
+  on('clock.every', () => ({ value: undefined }))
+  on('store.get', () => ({ value: DAY }))
+  on('store.set', () => ({ value: undefined }))
+  on('command.run', () => ({ text: '' }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  for (const columns of [50, 140]) {
+    const ui = await $.ui.mount({ ...PANE, surface: 'desktop', viewport: { columns, rows: 40 } })
+    // PROJ-214 has 2h 10m today: its time is a Text beside the bar, never only inside the picture
+    expect(await ui.find({ type: 'Text', text: '2h 10m' })).toBeTruthy()
+    await ui.unmount()
+  }
+})
+
 test('a question to send opens a chat with the person and the question typed in, when the email is known', async ($, on) => {
   const writes: { path: string; text: string }[] = []
   boardEngine(on, writes, [])

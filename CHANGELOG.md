@@ -2,6 +2,11 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## 0.3.2
+
+- Fix: the Time card's ticket bars no longer run past the card. Each bar shrinks to the room left,
+  its time is drawn beside it as text, and in a narrow pane the list moves under the ring.
+
 ## 0.3.1
 
 - Fix: the gather agent's templates moved from `agents/` to `agent-templates/`. Claude Code loads

@@ -1,6 +1,6 @@
 # Daybook
 
-[![CI](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml/badge.svg)](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml) ![License: MIT](https://img.shields.io/badge/license-MIT-0f9d8a.svg) ![Version](https://img.shields.io/badge/version-0.3.1-0f9d8a.svg) ![Reads only](https://img.shields.io/badge/your%20tools-read%20only-0f9d8a.svg)
+[![CI](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml/badge.svg)](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml) ![License: MIT](https://img.shields.io/badge/license-MIT-0f9d8a.svg) ![Version](https://img.shields.io/badge/version-0.3.2-0f9d8a.svg) ![Reads only](https://img.shields.io/badge/your%20tools-read%20only-0f9d8a.svg)
 
 **Your working day, beside Claude Code.**
 
