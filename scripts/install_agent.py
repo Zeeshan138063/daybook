@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-AGENTS = ROOT / "agents"
+AGENTS = ROOT / "agent-templates"  # not agents/: Claude Code would load these templates as agents
 LABELS = {"github": "GitHub", "gitlab": "GitLab", "bitbucket": "Bitbucket", "jira": "Jira", "linear": "Linear",
           "teams": "Teams", "slack": "Slack", "outlook": "Outlook", "gmail": "Gmail"}
 SECTION_NAME = {"teams": "teams", "slack": "teams", "outlook": "outlook", "gmail": "outlook"}

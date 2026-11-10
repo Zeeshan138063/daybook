@@ -1,6 +1,6 @@
 # Daybook
 
-[![CI](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml/badge.svg)](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml) ![License: MIT](https://img.shields.io/badge/license-MIT-0f9d8a.svg) ![Version](https://img.shields.io/badge/version-0.3.0-0f9d8a.svg) ![Reads only](https://img.shields.io/badge/your%20tools-read%20only-0f9d8a.svg)
+[![CI](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml/badge.svg)](https://github.com/Zeeshan138063/daybook/actions/workflows/ci.yml) ![License: MIT](https://img.shields.io/badge/license-MIT-0f9d8a.svg) ![Version](https://img.shields.io/badge/version-0.3.1-0f9d8a.svg) ![Reads only](https://img.shields.io/badge/your%20tools-read%20only-0f9d8a.svg)
 
 **Your working day, beside Claude Code.**
 
@@ -208,7 +208,7 @@ lists every key. Your buttons, for example:
 ```
 hooks/            the panel (register.tsx), demo data, panel tests
 collectors/       read-only adapters behind one contract, plus questions, doctor, tests
-agents/           the gather agent's template and per-tool sections
+agent-templates/  the gather agent's template and per-tool sections
 skills/           /daybook-setup and /daybook-refresh
 schema/           config, day file and questions, as JSON Schema
 scripts/          setup, doctor, gather, privacy check
