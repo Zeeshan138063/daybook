@@ -2,6 +2,45 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## 0.5.0
+
+- New: **How today is picked**, a screen in the Scrum card. Start from a preset (Most urgent first,
+  My board order, Highest priority, Only what I queue), then switch rules on or off and move them up
+  or down: unfinished from yesterday, already in progress, Next up, due soon (within N days),
+  highest Jira priority, board order, and a custom Jira search under Advanced. "New tickets a day"
+  caps the rest. Saved in `<ledger_dir>/scrum.json`; nobody edits a file.
+- **Next up**: type ticket keys or numbers in the order you want them; a delivered one drops out.
+- **Pick for today**: typed keys go straight onto today's list. ↑ ↓ under More reorder today.
+- Each ticket on today's list says why it is there: carried, in progress, Next up #1, High · due
+  27 Nov, board order, picked.
+- The Jira collector adds each ticket's priority, your board's order, and the custom search.
+
+## 0.4.2
+
+- Blockers in the Scrum card's status line opens the list: every question still waiting, who it
+  waits on, how long, and a link to its thread.
+
+## 0.4.1
+
+- The Scrum card is calmer: one status line in place of stat tiles; today as To do, In progress and
+  Delivered with one action per ticket (Start or Done) and the rest under More; yesterday's marks as
+  plain glyphs; the three oldest blockers with Show all.
+
+## 0.4.0
+
+- New: a Scrum card at the top of the panel.
+  - **Yesterday's target:** each ticket you committed on the last planned day, its status then and
+    now, a mark (delivered, in progress, not started) and "N of M delivered". Unfinished tickets
+    carry over to today with one press.
+  - **Today:** a suggested list (yesterday's unfinished tickets, yours in progress, the next two to
+    do) that you edit and lock. Each row has Start (To Do → In Development, sets the start date)
+    and Done (In Development → In Review, sets the due date). Each move shows a dry run first and
+    writes to the tracker only after Confirm. Done warns when no PR names the ticket.
+  - **Not done** keeps a reason; **Blockers** lists the questions still waiting; **Copy scrum**
+    gives Done last, Today and Blockers as bullets.
+- The plan is kept in `<ledger_dir>/scrum.json`; every write is logged in `<ledger_dir>/moves.log`.
+- The Jira collector adds `jira.mine`: open tickets assigned to you, plus the last week's planned ones.
+
 ## 0.3.2
 
 - Fix: the Time card's ticket bars no longer run past the card. Each bar shrinks to the room left,

@@ -34,6 +34,54 @@ export type QuestionRow = {
   manual: boolean
 }
 
+// The Scrum card. A ticket's column comes from its Jira status: To Do, In Progress (In Development),
+// Delivered (In Review or anything after it; Jira's own Done means deployed to production).
+export type ScrumColumn = 'todo' | 'doing' | 'delivered' | 'other'
+export type ScrumRow = {
+  key: string; title: string; status: string; column: ScrumColumn; url: string
+  // a PR in the day file names this ticket
+  hasPr: boolean
+  reason: string
+  carried: boolean
+  // why it is on today's list ("carried", "Next up #1", "High · due 27 Nov", "board order")
+  why: string
+  pickedBy: string
+}
+export type ScrumYesterdayRow = {
+  key: string; title: string; then: string; now: string; column: ScrumColumn; reason: string; url: string
+  // already on today's list
+  inToday: boolean
+}
+export type ScrumView = {
+  day: string
+  // today's plan is in scrum.json (else it is the suggestion)
+  saved: boolean
+  lockedAt: string
+  yesterday: { day: string; label: string; rows: ScrumYesterdayRow[]; delivered: number } | null
+  today: ScrumRow[]
+  addable: { key: string; title: string; status: string }[]
+  blockers: { text: string; since: string; url: string }[]
+  // Done last / Today / Blockers as bullets, for Copy scrum
+  text: string
+  // how today is picked, and the Next up list
+  settings: ScrumSettings
+  queue: { key: string; title: string }[]
+  // a board-order or custom-search query that failed at the last gather
+  orderError: string
+}
+export type ScrumRuleId = 'carry_over' | 'in_progress' | 'queue' | 'due_soon' | 'priority' | 'board' | 'custom'
+export type ScrumSettings = {
+  preset: 'urgent' | 'board' | 'priority' | 'queue_only' | 'custom'
+  rules: { id: ScrumRuleId; on: boolean }[]
+  due_days: number
+  new_per_day: number
+  custom_jql: string
+}
+// A Start or Done waiting for its Confirm: what the dry run says will change.
+export type ScrumPending = {
+  key: string; move: 'start' | 'done'; preview: string; error: string; noPr: boolean
+}
+
 export type View = {
   day: string
   greeting: string
@@ -62,6 +110,7 @@ export type View = {
   reviewer: string
   configPath: string
   providers: ProviderRow[]
+  scrum: ScrumView
   error?: string
 }
 
@@ -91,6 +140,13 @@ declare module 'claude-code' {
       picked: Shaped<DayTime | null>
       folded: Shaped<Record<string, boolean>>
       doctor: Shaped<Doctor | null>
+      scrumPending: Shaped<ScrumPending | null>
+      scrumBusy: Shaped<string | null>
+      scrumReason: Shaped<string | null>
+      scrumMenu: Shaped<string | null>
+      scrumAllBlockers: Shaped<boolean>
+      scrumSettingsOpen: Shaped<boolean>
+      scrumAdvancedOpen: Shaped<boolean>
     }
   }
 }

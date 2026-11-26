@@ -150,3 +150,25 @@ export function demoQuestions(day: string) {
     ],
   }
 }
+
+// The Scrum card's plan: yesterday's committed tickets (one delivered, two still going, one not
+// started) and nothing saved for today, so the card shows today's suggestion.
+export function demoScrum(day: string) {
+  const d = new Date(`${day}T12:00:00`)
+  do d.setDate(d.getDate() - 1); while (d.getDay() === 0 || d.getDay() === 6)
+  const prev = isoDay(d)
+  return {
+    days: {
+      [prev]: {
+        locked_at: at(prev, '09:10'),
+        items: [
+          { key: 'PROJ-104', summary: 'Import notes from a zip file', status_at_lock: 'In Development' },
+          { key: 'PROJ-107', summary: 'Full-text search', status_at_lock: 'In Development',
+            reason: 'waiting on the search question' },
+          { key: 'PROJ-111', summary: 'Drag notes between folders', status_at_lock: 'Backlog' },
+          { key: 'PROJ-108', summary: 'Nightly backups', status_at_lock: 'Backlog' },
+        ],
+      },
+    },
+  }
+}
