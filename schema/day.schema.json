@@ -220,6 +220,76 @@
               }
             }
           }
+        },
+        "mine": {
+          "description": "For the Scrum card: open tickets assigned to me, plus the tickets the last week's scrum plans name.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "summary",
+              "status"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "assignee": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "start_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "due_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "updated": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "orders": {
+          "description": "Ticket keys in each Scrum ordering query's own order: board (your board's rank), custom (your custom search).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "order_errors": {
+          "description": "An ordering query that failed at this gather, by name.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },

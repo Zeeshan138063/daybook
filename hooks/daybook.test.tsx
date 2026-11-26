@@ -200,6 +200,8 @@ test('the board filters by area, status, search and mine', async ($, on) => {
   const keys = async () => (await ui.findAll({ type: 'Link' }))
     .map(l => String(l.props.label ?? '')).filter(label => /^4\d\d$/.test(label))
 
+  // the Scrum card links its tickets too; fold it so only the board's links are counted
+  await ui.press({ key: 'fold-scrum' })
   expect(await keys()).toEqual(['421', '438', '445', '495'])
   await ui.select({ key: 'board-area', value: 'frontend' })
   expect(await keys()).toEqual(['438', '445'])

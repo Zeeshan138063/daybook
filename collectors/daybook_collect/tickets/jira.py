@@ -11,13 +11,17 @@ from __future__ import annotations
 import base64
 import json as jsonlib
 import os
+import re
 import subprocess
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Protocol
 
 from ..contract import Context, day_bounds, provider
+
+KEY = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
 
 
 class Client(Protocol):
@@ -124,6 +128,8 @@ class JiraTickets:
         return {
             "account_id": me["accountId"],
             "board": self.board(client, ctx),
+            "mine": self.mine(client, ctx, fields + ["priority"]),
+            **self.orders(client, ctx),
             "week_minutes": self.week(client, ctx, me["accountId"], search),
             "tickets": tickets,
             "logged_today_minutes": total // 60,
@@ -149,6 +155,65 @@ class JiraTickets:
                 if k in week:
                     week[k] += w["timeSpentSeconds"] // 60
         return week
+
+    @staticmethod
+    def mine(client: Client, ctx: Context, fields: list[str]) -> list[dict]:
+        """For the Scrum card: every open ticket assigned to me, plus every ticket the last week's
+        scrum plans name (so a planned ticket that is now Done still shows how it ended)."""
+        start_field = provider(ctx.cfg, "tickets").get("start_date_field", "")
+
+        def paged(jql: str) -> list[dict]:
+            found: list[dict] = []
+            token = None
+            while True:
+                body: dict = {"jql": jql, "fields": fields, "maxResults": 100}
+                if token:
+                    body["nextPageToken"] = token
+                page = client.request("POST", "search/jql", json=body)
+                found += page.get("issues", [])
+                token = page.get("nextPageToken")
+                if not token or len(found) >= 500:
+                    return found
+
+        issues = {i["key"]: i for i in paged("assignee = currentUser() AND statusCategory != Done ORDER BY key")}
+        planned = sorted(planned_keys(ctx) - issues.keys())
+        if planned:
+            issues.update({i["key"]: i for i in paged(f"key in ({','.join(planned)})")})
+        rows = []
+        for key in sorted(issues, key=lambda k: (k.split("-")[0], int(k.split("-")[1]))):
+            f = issues[key]["fields"]
+            rows.append({
+                "key": key,
+                "summary": f["summary"],
+                "status": f["status"]["name"],
+                "assignee": (f.get("assignee") or {}).get("displayName"),
+                "start_date": f.get(start_field) if start_field else None,
+                "due_date": f.get("duedate"),
+                "updated": f.get("updated"),
+                "priority": (f.get("priority") or {}).get("name"),
+            })
+        return rows
+
+    # Your board's order: the To Do tickets assigned to you, in the board's rank.
+    BOARD_ORDER_JQL = 'assignee = currentUser() AND statusCategory = "To Do" ORDER BY Rank ASC'
+
+    @staticmethod
+    def orders(client: Client, ctx: Context) -> dict:
+        """For the Scrum card's "My board order" and "custom search" rules: ticket keys in each
+        query's own order. A query that fails is recorded under order_errors; the rest still run."""
+        queries = {"board": JiraTickets.BOARD_ORDER_JQL}
+        custom = scrum_settings(ctx).get("custom_jql", "").strip()
+        if custom:
+            queries["custom"] = custom
+        orders: dict[str, list[str]] = {}
+        errors: dict[str, str] = {}
+        for name, jql in queries.items():
+            try:
+                page = client.request("POST", "search/jql", json={"jql": jql, "fields": ["summary"], "maxResults": 100})
+                orders[name] = [i["key"] for i in page.get("issues", [])]
+            except Exception as e:  # noqa: BLE001 - shown on the card, never hides the other rules
+                errors[name] = str(e)[:200]
+        return {"orders": orders, "order_errors": errors}
 
     @staticmethod
     def board(client: Client, ctx: Context) -> list[dict]:
@@ -188,6 +253,26 @@ class JiraTickets:
                 "area": area_of(parent_summary, board_cfg),
             })
         return rows
+
+
+def scrum_settings(ctx: Context) -> dict:
+    """The Scrum card's picking settings (<ledger_dir>/scrum.json, "settings"), or {}."""
+    try:
+        data = jsonlib.loads((Path(ctx.cfg["ledger_dir"]).expanduser() / "scrum.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    settings = data.get("settings")
+    return settings if isinstance(settings, dict) else {}
+
+
+def planned_keys(ctx: Context, days: int = 7) -> set[str]:
+    """Ticket keys in the Scrum card's plans (<ledger_dir>/scrum.json) from the last `days` days."""
+    try:
+        plans = jsonlib.loads((Path(ctx.cfg["ledger_dir"]).expanduser() / "scrum.json").read_text()).get("days", {})
+    except (OSError, ValueError):
+        return set()
+    since = (ctx.day - timedelta(days=days)).isoformat()
+    return {i["key"] for d, p in plans.items() if d >= since for i in p.get("items", []) if KEY.match(i.get("key", ""))}
 
 
 def area_of(parent_summary: str, board_cfg: dict) -> str:

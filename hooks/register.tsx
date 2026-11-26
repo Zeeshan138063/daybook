@@ -2,9 +2,12 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type {
-  ActionButton, Area, BoardRow, DayTime, Doctor, Filters, ProviderRow, Need, PrRow, QuestionRow, QuestionStatus, TicketRow, TicketTime, View, WeekDay,
+  ActionButton, Area, BoardRow, DayTime, Doctor, Filters, ProviderRow, Need, PrRow, QuestionRow, QuestionStatus,
+  ScrumPending, ScrumView, TicketRow, TicketTime, View, WeekDay,
 } from '../types'
-import { demoConfig, demoLedger, demoQuestions } from './demo'
+import { demoConfig, demoLedger, demoQuestions, demoScrum } from './demo'
+import { DEFAULT_SETTINGS, PRESETS, RULE_LABEL, scrumView, settingsOf } from './scrum'
+import type { JiraLite, PickSettings, PresetId, RuleId, ScrumDay, ScrumFile, ScrumItem } from './scrum'
 
 // The Daybook panel: what needs you, the day's time against its range and the week, your questions
 // (to send, waiting, answered with the reply), PRs and today's tickets as tables, the project's
@@ -13,7 +16,9 @@ import { demoConfig, demoLedger, demoQuestions } from './demo'
 // Everything personal lives in the config file: $DAYBOOK_CONFIG, else ~/.claude/daybook/config.json.
 // The panel reads the day file (<ledger_dir>/<day>.json) the collectors write, in the shape of
 // schema/day.schema.json, and the questions file; the one thing it writes is a question's "sent"
-// mark in the questions file. Every other write happens in a skill, after a yes.
+// mark in the questions file, and the Scrum card's plan (<ledger_dir>/scrum.json). The Scrum card's
+// Start and Done write to Jira, each only after its own Confirm (scripts/run.sh scrum move). Every
+// other write happens in a skill, after a yes.
 
 const PANE = 'daybook'
 const ATTRIBUTION = /Co-Authored-By:\s*Claude|Generated with \[?Claude Code/i
@@ -35,9 +40,11 @@ const expand = (h: string, p: string) => (p.startsWith('~/') ? `${h}${p.slice(1)
 // no command run. Kept in $.store so a reload stays in the mode the person chose.
 let demo = false
 let demoQs: QuestionsFile | null = null
+let demoPlan: ScrumFile | null = null
 async function setDemo($: EngineInterface, on: boolean) {
   demo = on
   demoQs = null
+  demoPlan = null
   await $.store.set('demo', on)
   await update($, picked, () => null)
 }
@@ -95,7 +102,18 @@ const BOARD_PAGE = 10
 const ANSWERED_DAYS = 7
 const DEFAULT_FILTERS: Filters = { area: 'all', status: 'all', search: '', mineOnly: false, showAll: false, page: 0 }
 
-const view = atom({ plugin: 'daybook', key: 'view' } as const, null, { shape: 'view-7' })
+const view = atom({ plugin: 'daybook', key: 'view' } as const, null, { shape: 'view-8' })
+// The Scrum card: a Start or Done waiting for Confirm, the ticket being moved, the ticket whose
+// "not done" reason is being typed.
+const scrumPending = atom({ plugin: 'daybook', key: 'scrumPending' } as const, null, { shape: 'scrum-pending-1' })
+const scrumBusy = atom({ plugin: 'daybook', key: 'scrumBusy' } as const, null, { shape: 'scrum-busy-1' })
+const scrumReason = atom({ plugin: 'daybook', key: 'scrumReason' } as const, null, { shape: 'scrum-reason-1' })
+// The ticket whose ⋯ is open (Not done, Take off today), and whether every blocker is shown.
+const scrumMenu = atom({ plugin: 'daybook', key: 'scrumMenu' } as const, null, { shape: 'scrum-menu-1' })
+const scrumAllBlockers = atom({ plugin: 'daybook', key: 'scrumAllBlockers' } as const, false, { shape: 'scrum-blockers-1' })
+// The "How today is picked" screen, and its Advanced part (the custom Jira search).
+const scrumSettingsOpen = atom({ plugin: 'daybook', key: 'scrumSettingsOpen' } as const, false, { shape: 'scrum-settings-1' })
+const scrumAdvancedOpen = atom({ plugin: 'daybook', key: 'scrumAdvancedOpen' } as const, false, { shape: 'scrum-advanced-1' })
 // The weekday picked in the Time card; null shows today.
 const picked = atom({ plugin: 'daybook', key: 'picked' } as const, null, { shape: 'picked-2' })
 const busy = atom({ plugin: 'daybook', key: 'busy' } as const, null, { shape: 'busy-1' })
@@ -108,7 +126,7 @@ const checking = atom({ plugin: 'daybook', key: 'checking' } as const, null, { s
 const folded = atom({ plugin: 'daybook', key: 'folded' } as const, {}, { shape: 'folded-1' })
 // The doctor's last report: is every tool connected, and the exact fix where not.
 const doctor = atom({ plugin: 'daybook', key: 'doctor' } as const, null, { shape: 'doctor-1' })
-const CARD_IDS = ['needs', 'time', 'questions', 'answered', 'prs', 'tickets', 'board', 'settings'] as const
+const CARD_IDS = ['needs', 'scrum', 'time', 'questions', 'answered', 'prs', 'tickets', 'board', 'settings'] as const
 // Folded until the user opens them: reference cards, not things to act on.
 const FOLDED_AT_FIRST: string[] = ['answered', 'hidden']
 async function setFolded($: EngineInterface, next: Record<string, boolean>) {
@@ -180,6 +198,11 @@ type Ledger = {
   github?: { login?: string; prs?: Pr[] }
   jira?: {
     tickets?: Ticket[]; board?: BoardTicket[]; logged_today_minutes?: number
+    // open tickets assigned to me, plus the tickets the last week's scrum plans name
+    mine?: JiraLite[]
+    // ticket keys in your board's rank and in your custom search's order; failed queries
+    orders?: Record<string, string[]>
+    order_errors?: Record<string, string>
     week_minutes?: Record<string, number>
   }
   teams?: { questions?: QuestionEntry[]; asks_for_me?: Ask[] }
@@ -293,7 +316,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 const weekdayLabel = (day: string) =>
   new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 
-function toView(l: Ledger, cfg: Config, questionsFile: QuestionsFile | null = null): View {
+function toView(l: Ledger, cfg: Config, questionsFile: QuestionsFile | null = null, scrumFile: ScrumFile = { days: {} }): View {
   const me = l.github?.login ?? ''
   const prs = l.github?.prs ?? []
   const tickets = l.jira?.tickets ?? []
@@ -418,8 +441,48 @@ function toView(l: Ledger, cfg: Config, questionsFile: QuestionsFile | null = nu
     reviewer: cfg.reviewer ?? '',
     configPath: cfg.config_path ?? '',
     providers: providerRows(cfg, l),
+    scrum: scrumView(scrumInput(l, cfg, questions, scrumFile), mineOf(l, cfg.me ?? '')),
   }
 }
+
+// Tickets for the Scrum card: the collector's open-and-planned list, else (an older day file) the
+// day's tickets and my board rows.
+function mineOf(l: Ledger, me: string): JiraLite[] {
+  if (l.jira?.mine) return l.jira.mine
+  const seen = new Map<string, JiraLite>()
+  for (const t of [...(l.jira?.tickets ?? []), ...(l.jira?.board ?? []).filter(b => !!b.assignee && samePerson(b.assignee, me))]) {
+    if (!seen.has(t.key)) seen.set(t.key, { key: t.key, summary: t.summary, status: t.status })
+  }
+  return [...seen.values()]
+}
+
+function scrumInput(l: Ledger, cfg: Config, questions: QuestionRow[], file: ScrumFile) {
+  const known = [...mineOf(l, cfg.me ?? ''), ...(l.jira?.board ?? []), ...(l.jira?.tickets ?? [])]
+  return {
+    day: l.day, gatheredAt: l.gathered_at, file, known, questions,
+    orders: l.jira?.orders ?? {}, orderErrors: l.jira?.order_errors ?? {},
+    prs: (l.github?.prs ?? []).map(p => ({ tickets: p.tickets, state: p.state })),
+    url: (key: string) => ticketUrl(cfg, key),
+  }
+}
+
+// Yesterday's marks: drawn glyphs in the panel's own colours, not emoji.
+const DOT: Record<string, string> = { delivered: '✓', doing: '◐', todo: '○', other: '!' }
+const DOT_COLOR: Record<string, 'success' | 'suggestion' | 'inactive' | 'warning'> = {
+  delivered: 'success', doing: 'suggestion', todo: 'inactive', other: 'warning',
+}
+const shortDay = (day: string) =>
+  new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+const SHORT_STATUS: Record<string, string> = { 'In Development': 'Dev', 'In Review': 'Review', 'Waiting QA': 'QA', 'Ready for Development': 'Ready' }
+const shortMove = (then: string, now: string) => {
+  const s = (x: string) => SHORT_STATUS[x] ?? x
+  return then && then !== now ? `${s(then)} → ${s(now)}` : s(now)
+}
+
+const EMPTY_SCRUM = (day: string): ScrumView => ({
+  day, saved: false, lockedAt: '', yesterday: null, today: [], addable: [], blockers: [], text: '',
+  settings: DEFAULT_SETTINGS, queue: [], orderError: '',
+})
 
 // The day's ring: the logged arc, and the 8h 15m–9h band as a lighter arc. Scale: 104% of the max.
 // Drawn interactive, so the band fades in and the logged arc sweeps round from zero.
@@ -515,12 +578,14 @@ async function load($: EngineInterface, day = today()) {
     const ledger = demo ? demoLedger(day) as Ledger : JSON.parse(await $.fs.read(`${cfg.ledger_dir}/${day}.json`)) as Ledger
     if (demo && !demoQs) demoQs = demoQuestions(day) as QuestionsFile
     const questions = demo ? demoQs : await readQuestions($, cfg)
-    await update($, view, () => toView(ledger, cfg, questions))
+    if (demo && !demoPlan) demoPlan = demoScrum(day) as ScrumFile
+    const plan = demo ? demoPlan ?? { days: {} } : await readScrum($, cfg)
+    await update($, view, () => toView(ledger, cfg, questions, plan))
   } catch {
     await update($, view, old => old ?? {
       day, greeting: greeting(''), dayLabel: longDate(day), updated: '—', updatedIso: '', sources: [],
       needs: [], loggedMinutes: 0, minMinutes: 495, maxMinutes: 540, perTicket: [], week: [],
-      tickets: [], prs: [], board: [], questions: [], nextTicket: '', nextTicketUrl: '', primary: null, buttons: [], timeCommand: '', chatName: 'chat', reviewer: '', configPath: '', providers: [], error: 'No day file yet. Press Refresh.',
+      tickets: [], prs: [], board: [], questions: [], nextTicket: '', nextTicketUrl: '', primary: null, buttons: [], timeCommand: '', chatName: 'chat', reviewer: '', configPath: '', providers: [], scrum: EMPTY_SCRUM(day), error: 'No day file yet. Press Refresh.',
     })
   }
 }
@@ -594,6 +659,268 @@ async function editQuestion($: EngineInterface, id: string, change: (q: Question
   } catch (err) {
     $.ui.toast(`Could not change the question: ${String(err).slice(0, 100)}`)
   }
+}
+
+// ── The Scrum card ─────────────────────────────────────────────────────────────────────────────
+const scrumPath = (cfg: Config) => `${cfg.ledger_dir}/scrum.json`
+
+async function readScrum($: EngineInterface, cfg: Config): Promise<ScrumFile> {
+  try {
+    const parsed = JSON.parse(await $.fs.read(scrumPath(cfg))) as Partial<ScrumFile>
+    return {
+      days: parsed.days && typeof parsed.days === 'object' ? parsed.days : {},
+      ...(parsed.settings ? { settings: parsed.settings } : {}),
+      ...(Array.isArray(parsed.queue) ? { queue: parsed.queue } : {}),
+    }
+  } catch {
+    return { days: {} }
+  }
+}
+
+// Every change to the plan: read the file fresh, start today's entry from the suggestion the card
+// shows when there is none yet, change it, write it back. Demo mode changes the in-memory plan only.
+async function editScrum($: EngineInterface, change: (day: ScrumDay, all: ScrumFile) => boolean, done: string) {
+  const v = await read($, view)
+  if (!v) return
+  try {
+    const cfg = await readConfig($)
+    const file = demo ? demoPlan ?? { days: {} } : await readScrum($, cfg)
+    const day = file.days[v.day] ?? {
+      locked_at: null,
+      items: v.scrum.today.map((r): ScrumItem => ({ key: r.key, summary: r.title, status_at_lock: r.status,
+        ...(r.pickedBy ? { picked_by: r.pickedBy as ScrumItem['picked_by'] } : {}),
+        ...(r.carried && v.scrum.yesterday ? { carried_from: v.scrum.yesterday.day } : {}) })),
+    }
+    if (!change(day, file)) return
+    file.days[v.day] = day
+    if (demo) demoPlan = file
+    else await $.fs.write(scrumPath(cfg), `${JSON.stringify(file, null, 2)}\n`)
+    if (done) $.ui.toast(demo ? `${done} (demo: nothing saved)` : done)
+    await load($)
+  } catch (err) {
+    $.ui.toast(`Could not save the scrum plan: ${String(err).slice(0, 100)}`)
+  }
+}
+
+const statusNow = (v: View, key: string) => v.scrum.today.find(r => r.key === key)?.status
+  ?? v.scrum.addable.find(r => r.key === key)?.status ?? ''
+
+// The settings and Next up: the whole plan file, read fresh, changed, written back. Today's
+// suggestion follows at once; a saved (locked or edited) day keeps its list.
+async function editPlan($: EngineInterface, change: (file: ScrumFile) => boolean, done = '') {
+  try {
+    const cfg = await readConfig($)
+    const file = demo ? demoPlan ?? { days: {} } : await readScrum($, cfg)
+    if (!change(file)) return
+    if (demo) demoPlan = file
+    else await $.fs.write(scrumPath(cfg), `${JSON.stringify(file, null, 2)}\n`)
+    if (done) $.ui.toast(demo ? `${done} (demo: nothing saved)` : done)
+    await load($)
+  } catch (err) {
+    $.ui.toast(`Could not save: ${String(err).slice(0, 100)}`)
+  }
+}
+
+const editSettings = ($: EngineInterface, change: (s: PickSettings) => PickSettings, done = '') =>
+  editPlan($, file => { file.settings = change(settingsOf(file)); return true }, done)
+
+const scrumPreset = ($: EngineInterface, id: PresetId) =>
+  editSettings($, s => ({ ...s, preset: id, rules: PRESETS[id].rules.map(r => ({ ...r })) }), `Picking: ${PRESETS[id].label}.`)
+const scrumToggleRule = ($: EngineInterface, id: RuleId) =>
+  editSettings($, s => ({ ...s, preset: 'custom', rules: s.rules.map(r => (r.id === id ? { ...r, on: !r.on } : r)) }))
+async function scrumMoveRule($: EngineInterface, id: RuleId, dir: -1 | 1) {
+  await editSettings($, s => {
+    const rules = [...s.rules]
+    const i = rules.findIndex(r => r.id === id)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= rules.length) return s
+    const [a, b] = [rules[i], rules[j]]
+    if (!a || !b) return s
+    rules[i] = b
+    rules[j] = a
+    return { ...s, preset: 'custom', rules }
+  })
+}
+const scrumNumber = ($: EngineInterface, field: 'due_days' | 'new_per_day', delta: number) =>
+  editSettings($, s => ({ ...s, [field]: Math.max(field === 'due_days' ? 0 : 0, Math.min(field === 'due_days' ? 30 : 10, s[field] + delta)) }))
+const scrumCustomJql = ($: EngineInterface, jql: string) =>
+  editSettings($, s => ({ ...s, custom_jql: jql.trim() }), jql.trim() ? 'Custom search saved: it is read at the next Refresh.' : 'Custom search cleared.')
+
+// "885 934, PROJ-576" → PROJ-885, PROJ-934, PROJ-576: a bare number takes your tickets' project.
+function parseKeys(text: string, v: View): string[] {
+  const projects = [...v.scrum.today, ...v.scrum.addable].map(r => r.key.split('-')[0] ?? '')
+  const project = projects.sort((a, b) => projects.filter(p => p === b).length - projects.filter(p => p === a).length)[0] ?? ''
+  const keys = text.toUpperCase().split(/[\s,;]+/).filter(Boolean)
+    .map(k => (/^\d+$/.test(k) && project ? `${project}-${k}` : k)).filter(k => /^[A-Z][A-Z0-9]*-\d+$/.test(k))
+  return [...new Set(keys)]
+}
+
+async function scrumQueueAdd($: EngineInterface, text: string) {
+  const v = await read($, view)
+  if (!v) return
+  const keys = parseKeys(text, v)
+  if (!keys.length) { $.ui.toast('Type ticket keys or numbers, like 885 934.'); return }
+  await editPlan($, file => {
+    file.queue = [...(file.queue ?? []).filter(k => !keys.includes(k)), ...keys]
+    return true
+  }, `Next up: ${keys.join(', ')}.`)
+}
+const scrumQueueRemove = ($: EngineInterface, key: string) =>
+  editPlan($, file => { file.queue = (file.queue ?? []).filter(k => k !== key); return true })
+
+// Pick for today: straight onto today's list, whatever the rules say.
+async function scrumPick($: EngineInterface, text: string) {
+  const v = await read($, view)
+  if (!v) return
+  const keys = parseKeys(text, v)
+  if (!keys.length) { $.ui.toast('Type ticket keys or numbers, like 885 934.'); return }
+  const known = (k: string) => v.scrum.addable.find(t => t.key === k)
+  await editScrum($, day => {
+    let added = 0
+    for (const k of keys) {
+      if (day.items.some(i => i.key === k)) continue
+      day.items.push({ key: k, summary: known(k)?.title ?? '', status_at_lock: known(k)?.status ?? '', picked_by: 'pick' })
+      added += 1
+    }
+    return added > 0
+  }, `Added to today: ${keys.join(', ')}.`)
+}
+
+async function scrumMoveRow($: EngineInterface, key: string, dir: -1 | 1) {
+  await editScrum($, day => {
+    const i = day.items.findIndex(t => t.key === key)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= day.items.length) return false
+    const [a, b] = [day.items[i], day.items[j]]
+    if (!a || !b) return false
+    day.items[i] = b
+    day.items[j] = a
+    return true
+  }, '')
+}
+
+async function scrumAdd($: EngineInterface, key: string) {
+  const v = await read($, view)
+  const t = v?.scrum.addable.find(r => r.key === key)
+  if (!v || !t) return
+  await editScrum($, day => {
+    if (day.items.some(i => i.key === key)) return false
+    day.items.push({ key, summary: t.title, status_at_lock: t.status })
+    return true
+  }, `${key} added to today.`)
+}
+
+async function scrumCarry($: EngineInterface, key: string) {
+  const v = await read($, view)
+  const y = v?.scrum.yesterday
+  const row = y?.rows.find(r => r.key === key)
+  if (!v || !y || !row) return
+  await editScrum($, day => {
+    if (day.items.some(i => i.key === key)) return false
+    day.items.push({ key, summary: row.title, status_at_lock: row.now, carried_from: y.day })
+    return true
+  }, `${key} carried over to today.`)
+}
+
+async function scrumRemove($: EngineInterface, key: string) {
+  await editScrum($, day => {
+    const before = day.items.length
+    day.items = day.items.filter(i => i.key !== key)
+    return day.items.length !== before
+  }, `${key} taken off today.`)
+}
+
+// Lock: the list is today's commitment; each ticket's status now is what tomorrow compares with.
+async function scrumLock($: EngineInterface) {
+  const v = await read($, view)
+  if (!v) return
+  await editScrum($, day => {
+    day.locked_at = new Date().toISOString()
+    for (const i of day.items) i.status_at_lock = statusNow(v, i.key) || i.status_at_lock
+    return true
+  }, "Today's plan is locked.")
+}
+
+async function scrumSetReason($: EngineInterface, key: string, text: string) {
+  await update($, scrumReason, () => null)
+  await editScrum($, day => {
+    const item = day.items.find(i => i.key === key)
+    if (!item) return false
+    if (text.trim()) item.reason = text.trim()
+    else delete item.reason
+    return true
+  }, text.trim() ? `${key}: reason saved.` : `${key}: reason cleared.`)
+}
+
+type MoveResult = { key: string; from?: string; to?: string; transition?: { name: string } | null
+  fields?: Record<string, [string | null, string]>; wrote: boolean; error: string | null }
+
+async function runMove($: EngineInterface, key: string, move: 'start' | 'done', dryRun: boolean): Promise<MoveResult> {
+  const argv = ['/bin/sh', `${$.plugin.root}/scripts/run.sh`, 'scrum', 'move', key, '--to', move, '--day', today()]
+  const run = await $.process.run(dryRun ? [...argv, '--dry-run'] : argv, { timeoutMs: 90_000 })
+  try {
+    return JSON.parse(run.stdout.trim().split('\n').at(-1) ?? '') as MoveResult
+  } catch {
+    return { key, wrote: false, error: (run.stderr || run.stdout || 'no answer from the move script').slice(0, 200) }
+  }
+}
+
+const previewOf = (r: MoveResult) => [
+  `${r.key}: ${r.from} → ${r.to}${r.transition ? ` (${r.transition.name})` : ''}`,
+  ...Object.entries(r.fields ?? {}).map(([name, [old, nu]]) => `${name}: ${old ?? 'empty'} → ${nu}`),
+].join(' · ')
+
+// Start or Done, step one: a dry run, shown for Confirm. Nothing is written yet.
+async function scrumAsk($: EngineInterface, key: string, move: 'start' | 'done') {
+  const v = await read($, view)
+  const row = v?.scrum.today.find(r => r.key === key)
+  if (!v || !row) return
+  const noPr = move === 'done' && !row.hasPr
+  if (demo) {
+    const to = move === 'start' ? 'In Development' : 'In Review'
+    const field = move === 'start' ? 'Start date: empty' : 'Due date: empty'
+    await update($, scrumPending, (): ScrumPending => ({ key, move, noPr, error: '',
+      preview: `${key}: ${row.status} → ${to} · ${field} → ${today()}` }))
+    return
+  }
+  await update($, scrumBusy, () => key)
+  try {
+    const r = await runMove($, key, move, true)
+    await update($, scrumPending, (): ScrumPending => ({ key, move, noPr, error: r.error ?? '', preview: r.error ? '' : previewOf(r) }))
+  } catch (err) {
+    await update($, scrumPending, (): ScrumPending => ({ key, move, noPr, error: String(err).slice(0, 160), preview: '' }))
+  }
+  await update($, scrumBusy, () => null)
+}
+
+// Step two, after Confirm: the move itself, recorded in today's plan so the card shows it at once.
+async function scrumConfirm($: EngineInterface) {
+  const p = await read($, scrumPending)
+  if (!p || p.error) return
+  await update($, scrumPending, () => null)
+  await update($, scrumBusy, () => p.key)
+  let r: MoveResult
+  if (demo) {
+    const v = await read($, view)
+    r = { key: p.key, from: v ? statusNow(v, p.key) : '', to: p.move === 'start' ? 'In Development' : 'In Review', wrote: true, error: null }
+  } else {
+    try {
+      r = await runMove($, p.key, p.move, false)
+    } catch (err) {
+      r = { key: p.key, wrote: false, error: String(err).slice(0, 160) }
+    }
+  }
+  await update($, scrumBusy, () => null)
+  if (!r.wrote) {
+    $.ui.toast(`${p.key} not moved: ${r.error ?? 'unknown error'}`)
+    return
+  }
+  await editScrum($, day => {
+    day.moves = [...(day.moves ?? []), { key: p.key, from: r.from ?? '', to: r.to ?? '', at: new Date().toISOString() }]
+    const item = day.items.find(i => i.key === p.key)
+    if (item && p.move === 'done') delete item.reason
+    return true
+  }, `${p.key} is now ${r.to}.`)
 }
 
 function filterBoard(rows: BoardRow[], f: Filters): BoardRow[] {
@@ -776,7 +1103,21 @@ export const register: Register = on => {
     const f = await read($, filters)
     const pick = await read($, picked)
     const fold = await read($, folded)
+    const pending = await read($, scrumPending)
+    const moving = await read($, scrumBusy)
+    const reasonFor = await read($, scrumReason)
     if (!v) return <Text color="inactive">Loading…</Text>
+    const sc = v.scrum ?? EMPTY_SCRUM(v.day)
+    const menuFor = await read($, scrumMenu)
+    const allBlockers = await read($, scrumAllBlockers)
+    const todo = sc.today.filter(r => r.column === 'todo' || r.column === 'other')
+    const doing = sc.today.filter(r => r.column === 'doing')
+    const delivered = sc.today.filter(r => r.column === 'delivered')
+    const stackScrum = (e.viewport?.columns ?? 999) < 90
+    const settingsOpen = await read($, scrumSettingsOpen)
+    const advancedOpen = await read($, scrumAdvancedOpen)
+    const pickSet = sc.settings ?? DEFAULT_SETTINGS
+
     // Any filter change goes back to the first page.
     const setF = (patch: Partial<Filters>) => { void update($, filters, old => ({ ...old, ...patch, showAll: patch.showAll ?? false, page: patch.page ?? 0 })) }
     const shown = filterBoard(v.board, f)
@@ -911,6 +1252,229 @@ export const register: Register = on => {
               <Text size="caption" color="inactive">{'  nothing is waiting on you'}</Text>
             </Box>
           )}
+
+          {/* scrum: three tiles, today as To do / In progress / Delivered, yesterday, blockers */}
+          <Card id="scrum" title={`Scrum · ${shortDay(sc.day)}`} count={sc.today.length}
+            summary={`${sc.yesterday ? `yesterday ${sc.yesterday.delivered} of ${sc.yesterday.rows.length} · ` : ''}today ${sc.today.length} · ${sc.lockedAt ? 'locked' : 'not locked'}`}>
+            <Box justifyContent="space-between" alignItems="center" gap={1}>
+              <Text size="caption" color="inactive">
+                {sc.lockedAt ? `Locked ${localTime(sc.lockedAt)}` : sc.saved ? 'Draft: not locked yet' : 'Suggested: not locked yet'}
+              </Text>
+              <Box gap={1} alignItems="center">
+                <Button key="scrum-settings" plain label={settingsOpen ? 'Close picking ▴' : 'How today is picked ▾'}
+                  onPress={() => { void update($, scrumSettingsOpen, old => !old) }} />
+                {!sc.lockedAt && sc.today.length > 0 &&
+                  <Button key="scrum-lock" label="Lock today" variant="secondary" onPress={() => { void scrumLock($) }} />}
+              </Box>
+            </Box>
+            {settingsOpen && (
+              <Box flexDirection="column" marginTop={1} paddingX={1} borderStyle="round" borderColor="subtle">
+                <Text size="caption" color="inactive">Start from</Text>
+                <Box gap={1} flexWrap="wrap">
+                  {(Object.keys(PRESETS) as PresetId[]).map(id => (
+                    <Button key={`scrum-preset-${id}`} label={`${pickSet.preset === id ? '● ' : ''}${PRESETS[id].label}`}
+                      {...(pickSet.preset === id ? { variant: 'secondary' as const } : { plain: true as const })}
+                      onPress={() => { void scrumPreset($, id) }} />
+                  ))}
+                  {pickSet.preset === 'custom' && <Text size="caption" color="inactive">● Custom</Text>}
+                </Box>
+                <Box marginTop={1}><Text size="caption" color="inactive">Rules, top one first. Yesterday's and in-progress tickets always fit; the rest share the daily allowance.</Text></Box>
+                {pickSet.rules.map((r, i) => (
+                  <Box key={`scrum-rule-${r.id}`} gap={1} alignItems="center">
+                    <Box width={6} flexShrink={0}>
+                      <Button key={`scrum-rule-on-${r.id}`} label={r.on ? 'On' : 'Off'} {...(r.on ? { variant: 'secondary' as const } : { plain: true as const })}
+                        onPress={() => { void scrumToggleRule($, r.id) }} />
+                    </Box>
+                    <Box flexGrow={1} minWidth={0} gap={1} alignItems="center">
+                      <Text size="caption" color={r.on ? undefined : 'inactive'} wrap="truncate-end">{RULE_LABEL[r.id]}</Text>
+                      {r.id === 'due_soon' && <Box gap={1} alignItems="center">
+                        <Text size="caption" color="inactive">within</Text>
+                        <Button key="scrum-due-minus" label="−" plain onPress={() => { void scrumNumber($, 'due_days', -1) }} />
+                        <Text size="caption" tabular>{`${pickSet.due_days} ${pickSet.due_days === 1 ? 'day' : 'days'}`}</Text>
+                        <Button key="scrum-due-plus" label="+" plain onPress={() => { void scrumNumber($, 'due_days', 1) }} />
+                      </Box>}
+                      {r.id === 'custom' && !pickSet.custom_jql && <Text size="caption" color="inactive">(set it under Advanced)</Text>}
+                    </Box>
+                    <Box flexShrink={0} gap={1}>
+                      {i > 0 && <Button key={`scrum-rule-up-${r.id}`} label="↑" plain onPress={() => { void scrumMoveRule($, r.id, -1) }} />}
+                      {i < pickSet.rules.length - 1 && <Button key={`scrum-rule-down-${r.id}`} label="↓" plain onPress={() => { void scrumMoveRule($, r.id, 1) }} />}
+                    </Box>
+                  </Box>
+                ))}
+                <Box gap={1} alignItems="center" marginTop={1}>
+                  <Text size="caption">New tickets a day</Text>
+                  <Button key="scrum-new-minus" label="−" plain onPress={() => { void scrumNumber($, 'new_per_day', -1) }} />
+                  <Text size="caption" weight="semibold" tabular>{String(pickSet.new_per_day)}</Text>
+                  <Button key="scrum-new-plus" label="+" plain onPress={() => { void scrumNumber($, 'new_per_day', 1) }} />
+                </Box>
+
+                <Box marginTop={1}><Text size="caption" color="inactive">Next up · picked in this order, and dropped once delivered</Text></Box>
+                <Box gap={1} flexWrap="wrap" alignItems="center">
+                  {sc.queue.length === 0 && <Text size="caption" color="inactive">Empty.</Text>}
+                  {sc.queue.map((q, i) => (
+                    <Box key={`scrum-q-${q.key}`} gap={0} alignItems="center">
+                      <Text size="caption" mono>{`${i + 1} · ${q.key}`}</Text>
+                      <Button key={`scrum-q-remove-${q.key}`} label="×" plain onPress={() => { void scrumQueueRemove($, q.key) }} />
+                    </Box>
+                  ))}
+                </Box>
+                {Input && <Input key="scrum-queue-input" placeholder="885 934" value="" submitLabel="add"
+                  onSubmit={value => { void scrumQueueAdd($, value) }} />}
+
+                <Box marginTop={1}>
+                  <Button key="scrum-advanced" plain label={advancedOpen ? 'Advanced ▴' : 'Advanced: a custom Jira search ▾'}
+                    onPress={() => { void update($, scrumAdvancedOpen, old => !old) }} />
+                </Box>
+                {advancedOpen && Input && (
+                  <Box flexDirection="column" marginBottom={1}>
+                    <Text size="caption" color="inactive">Any Jira search (JQL), used in its own order by "My custom Jira search". Read at the next Refresh.</Text>
+                    <Input key="scrum-jql" placeholder="assignee = currentUser() AND sprint in openSprints() ORDER BY Rank" value={pickSet.custom_jql} submitLabel="save"
+                      onSubmit={value => { void scrumCustomJql($, value) }} />
+                  </Box>
+                )}
+              </Box>
+            )}
+            {sc.orderError && <Text size="caption" color="warning">{`Not used this time: ${sc.orderError}`}</Text>}
+
+            {/* one status line instead of stat tiles: the numbers below already show the detail */}
+            <Box gap={2} flexWrap="wrap">
+              <Text size="caption" color="inactive">
+                {'Yesterday '}<Text size="caption" weight="semibold" color={sc.yesterday && sc.yesterday.delivered === sc.yesterday.rows.length ? 'success' : undefined}>
+                  {sc.yesterday ? `${sc.yesterday.delivered} of ${sc.yesterday.rows.length} delivered` : 'no plan'}</Text>
+              </Text>
+              <Text size="caption" color="inactive">
+                {'Today '}<Text size="caption" weight="semibold">{`${sc.today.length} planned, ${doing.length} in progress`}</Text>
+              </Text>
+              {sc.blockers.length > 0
+                ? <Button key="scrum-blockers" plain label={`Blockers ${sc.blockers.length} ${allBlockers ? '▴' : '▾'}`}
+                    onPress={() => { void update($, scrumAllBlockers, old => !old) }} />
+                : <Text size="caption" color="inactive">Blockers 0</Text>}
+            </Box>
+            {/* the blockers themselves, opened from the status line: each one, who it waits on, since when, and its thread */}
+            {allBlockers && sc.blockers.length > 0 && (
+              <Box flexDirection="column" marginTop={1} paddingLeft={2}>
+                <Text size="caption" color="inactive">Questions still waiting for an answer, oldest first. Mark answered in Questions to clear one.</Text>
+                {sc.blockers.map((b, i) => (
+                  <Box key={`scrum-b-${i}`} gap={1} alignItems="center">
+                    <Box flexGrow={1} minWidth={0}><Text size="caption" wrap="truncate-end">{b.text}</Text></Box>
+                    <Box flexShrink={0}><Text size="caption" color="warning" tabular>{b.since ? ago(b.since) : ''}</Text></Box>
+                    <Box flexShrink={0} width={7} justifyContent="flex-end">{b.url ? <Link href={b.url} label="Open ↗" /> : <Text size="caption" color="inactive">—</Text>}</Box>
+                  </Box>
+                ))}
+              </Box>
+            )}
+
+            {/* today as a board */}
+            <Box gap={1} marginTop={1} flexDirection={stackScrum ? 'column' : 'row'} alignItems="flex-start">
+              {([['To do', todo], ['In progress', doing], ['Delivered', delivered]] as const).map(([title, rows]) => (
+                <Box key={`scrum-col-${title}`} flexDirection="column" flexGrow={1} minWidth={0}
+                  width={stackScrum ? '100%' : undefined}>
+                  <Box gap={1} marginBottom={1}>
+                    <Text size="caption" weight="semibold">{title}</Text>
+                    <Text size="caption" color="inactive" tabular>{String(rows.length)}</Text>
+                  </Box>
+                  {rows.length === 0 && <Text size="caption" color="inactive">{title === 'To do' ? 'Add a ticket below' : '—'}</Text>}
+                  {rows.map(r => (
+                    <Box key={`scrum-t-${r.key}`} flexDirection="column" marginBottom={1}>
+                      <Box justifyContent="space-between" alignItems="center" gap={1}>
+                        {r.url ? <Link href={r.url} label={r.key} /> : <Text size="caption" mono>{r.key}</Text>}
+                        <Box gap={1} alignItems="center" flexShrink={0}>
+                          {r.column === 'doing' && r.hasPr && <Text size="caption" color="success">PR up</Text>}
+                          {r.column === 'delivered' && <Text size="caption" color="success">{r.status}</Text>}
+                          {r.column === 'other' && <Text size="caption" color="warning">{r.status}</Text>}
+                          {r.why && <Text size="caption" color="inactive">{r.why}</Text>}
+                          {moving === r.key && <Text size="caption" color="inactive">working…</Text>}
+                          {moving !== r.key && r.column === 'todo' &&
+                            <Button key={`scrum-start-${r.key}`} label="Start" variant="secondary" onPress={() => { void scrumAsk($, r.key, 'start') }} />}
+                          {moving !== r.key && r.column === 'doing' &&
+                            <Button key={`scrum-done-${r.key}`} label="Done" variant="secondary" onPress={() => { void scrumAsk($, r.key, 'done') }} />}
+                          {r.column !== 'delivered' &&
+                            <Button key={`scrum-more-${r.key}`} label="More" plain
+                              onPress={() => { void update($, scrumMenu, old => (old === r.key ? null : r.key)) }} />}
+                        </Box>
+                      </Box>
+                      <Text size="caption" color={r.column === 'delivered' ? 'inactive' : undefined} wrap="truncate-end">{r.title}</Text>
+                      {r.reason && <Text size="caption" color="warning" wrap="truncate-end">{`Not done: ${r.reason}`}</Text>}
+                      {menuFor === r.key && (
+                        <Box gap={1}>
+                          <Button key={`scrum-up-${r.key}`} label="↑" plain onPress={() => { void scrumMoveRow($, r.key, -1) }} />
+                          <Button key={`scrum-down-${r.key}`} label="↓" plain onPress={() => { void scrumMoveRow($, r.key, 1) }} />
+                          <Button key={`scrum-notdone-${r.key}`} label="Not done…" plain
+                            onPress={() => { void update($, scrumMenu, () => null); void update($, scrumReason, () => r.key) }} />
+                          <Button key={`scrum-remove-${r.key}`} label="Take off today" plain
+                            onPress={() => { void update($, scrumMenu, () => null); void scrumRemove($, r.key) }} />
+                        </Box>
+                      )}
+                      {pending?.key === r.key && (
+                        <Box flexDirection="column" paddingLeft={2} marginTop={1}>
+                          {pending.error
+                            ? <Text size="caption" color="error">{pending.error}</Text>
+                            : <Text size="caption">{pending.preview.replace(`${r.key}: `, '')}</Text>}
+                          {pending.noPr && !pending.error &&
+                            <Text size="caption" color="warning">No PR in today's data names this ticket. Done is for a ticket whose PR is up.</Text>}
+                          <Box gap={1}>
+                            {!pending.error && <Button key={`scrum-confirm-${r.key}`} label={pending.noPr ? 'Confirm anyway' : 'Confirm'} variant="primary"
+                              onPress={() => { void scrumConfirm($) }} />}
+                            <Button key={`scrum-cancel-${r.key}`} label={pending.error ? 'Close' : 'Cancel'} plain
+                              onPress={() => { void update($, scrumPending, () => null) }} />
+                          </Box>
+                        </Box>
+                      )}
+                      {reasonFor === r.key && Input && (
+                        <Box marginTop={1}>
+                          <Input key={`scrum-reason-${r.key}`} placeholder="Blocked, waiting on review…" value={r.reason} submitLabel="save"
+                            onSubmit={value => { void scrumSetReason($, r.key, value) }} />
+                        </Box>
+                      )}
+                    </Box>
+                  ))}
+                </Box>
+              ))}
+            </Box>
+            {Input && (
+              <Box marginTop={1}>
+                <Input key="scrum-pick" placeholder="Pick for today: 885 934" value="" submitLabel="add"
+                  onSubmit={value => { void scrumPick($, value) }} />
+              </Box>
+            )}
+            {Select && sc.addable.length > 0 && (
+              <Box marginTop={1}>
+                <Select key="scrum-add" label="Add ticket" value=""
+                  options={[{ value: '', label: `Add one of ${sc.addable.length}…` },
+                    ...sc.addable.map(t => ({ value: t.key, label: `${t.key} · ${t.title} (${t.status})` }))]}
+                  onSelect={value => { if (value) void scrumAdd($, value) }} />
+              </Box>
+            )}
+
+            {/* yesterday */}
+            <Box flexDirection="column" marginTop={1}>
+              <Text size="caption" weight="semibold" color="inactive">
+                {sc.yesterday ? `Yesterday · ${sc.yesterday.label}` : 'Yesterday'}
+              </Text>
+              {!sc.yesterday && <Text size="caption" color="inactive">Lock today's list, and tomorrow this shows how it went.</Text>}
+              {sc.yesterday?.rows.map(r => (
+                <Box key={`scrum-y-${r.key}`} gap={1} alignItems="center">
+                  <Box width={2} flexShrink={0}><Text size="caption" color={DOT_COLOR[r.column]}>{DOT[r.column]}</Text></Box>
+                  <Box flexShrink={0}>{r.url ? <Link href={r.url} label={r.key} /> : <Text size="caption" mono>{r.key}</Text>}</Box>
+                  <Box flexGrow={1} minWidth={0}><Text size="caption" wrap="truncate-end">{r.reason ? `${r.title} · ${r.reason}` : r.title}</Text></Box>
+                  {!narrow && <Box flexShrink={0}><Text size="caption" color="inactive">{shortMove(r.then, r.now)}</Text></Box>}
+                  <Box flexShrink={0}>
+                    {r.column !== 'delivered' && !r.inToday
+                      ? <Button key={`scrum-carry-${r.key}`} label="Carry over" plain onPress={() => { void scrumCarry($, r.key) }} />
+                      : <Text size="caption" color="inactive">{r.inToday && r.column !== 'delivered' ? 'carried' : ''}</Text>}
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+
+            <Box gap={1} marginTop={1}>
+              <Button key="scrum-copy" label="Copy scrum" variant="secondary" onPress={press => {
+                void $.ui.copy({ text: sc.text, surface: press.surface })
+                  .then(res => $.ui.toast(res.isCopied ? 'Scrum copied.' : 'Could not copy.'))
+              }} />
+              <Button key="scrum-write" label="Write to scrum doc" plain onPress={() => ask($, '/scrum')} />
+            </Box>
+          </Card>
 
           {/* time: today, or the weekday picked below */}
           <Card id="time" title={pick ? `Time · ${pick.label}` : 'Time today'}
