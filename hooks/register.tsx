@@ -3,7 +3,7 @@ import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type {
   ActionButton, Area, BoardRow, DayTime, Doctor, Filters, ProviderRow, Need, PrRow, QuestionRow, QuestionStatus,
-  ScrumPending, ScrumView, TicketRow, TicketTime, View, WeekDay,
+  PrFilters, ScrumPending, ScrumView, TicketRow, TicketTime, TrackerRow, TrackerStatus, View, WeekDay,
 } from '../types'
 import { demoConfig, demoLedger, demoQuestions, demoScrum } from './demo'
 import { DEFAULT_SETTINGS, PRESETS, RULE_LABEL, scrumView, settingsOf } from './scrum'
@@ -113,6 +113,9 @@ const scrumMenu = atom({ plugin: 'daybook', key: 'scrumMenu' } as const, null, {
 const scrumAllBlockers = atom({ plugin: 'daybook', key: 'scrumAllBlockers' } as const, false, { shape: 'scrum-blockers-1' })
 // The "How today is picked" screen, and its Advanced part (the custom Jira search).
 const scrumSettingsOpen = atom({ plugin: 'daybook', key: 'scrumSettingsOpen' } as const, false, { shape: 'scrum-settings-1' })
+// The Pull requests card's filters: open / merged / all, status, repository, search, merged window.
+const DEFAULT_PR_FILTERS: PrFilters = { show: 'open', status: 'all', repo: 'all', search: '', days: 7 }
+const prFilters = atom({ plugin: 'daybook', key: 'prFilters' } as const, DEFAULT_PR_FILTERS, { shape: 'pr-filters-1' })
 const scrumAdvancedOpen = atom({ plugin: 'daybook', key: 'scrumAdvancedOpen' } as const, false, { shape: 'scrum-advanced-1' })
 // The weekday picked in the Time card; null shows today.
 const picked = atom({ plugin: 'daybook', key: 'picked' } as const, null, { shape: 'picked-2' })
@@ -195,7 +198,14 @@ type Ask = { from: string; text: string; url?: string }
 type Ledger = {
   day: string; gathered_at: string
   sources: Record<string, { ok: boolean; at?: string }>
-  github?: { login?: string; prs?: Pr[] }
+  github?: {
+    login?: string; prs?: Pr[]
+    tracker?: {
+      repo: string; label: string; number: number; title: string; url: string; tickets: string[]
+      status: TrackerStatus; note: string; base: string; created_at?: string | null; merged_at?: string | null
+    }[]
+    tracker_error?: string
+  }
   jira?: {
     tickets?: Ticket[]; board?: BoardTicket[]; logged_today_minutes?: number
     // open tickets assigned to me, plus the tickets the last week's scrum plans name
@@ -442,7 +452,61 @@ function toView(l: Ledger, cfg: Config, questionsFile: QuestionsFile | null = nu
     configPath: cfg.config_path ?? '',
     providers: providerRows(cfg, l),
     scrum: scrumView(scrumInput(l, cfg, questions, scrumFile), mineOf(l, cfg.me ?? '')),
+    tracker: l.github?.tracker ? l.github.tracker.map((r): TrackerRow => ({
+      repo: r.repo, label: r.label, number: r.number, title: r.title, url: r.url,
+      tickets: r.tickets.map(k => ({ key: k, url: ticketUrl(cfg, k) })),
+      status: r.status, note: r.note, base: r.base, at: (r.status === 'merged' ? r.merged_at : r.created_at) ?? '',
+    })) : null,
+    trackerError: l.github?.tracker_error ?? '',
   }
+}
+
+// ── The PR tracker ────────────────────────────────────────────────────────────────────────────
+const PR_STATUS: Record<TrackerStatus, { label: string; color: 'warning' | 'suggestion' | 'success' | 'inactive' }> = {
+  needs_fixes: { label: 'Needs fixes', color: 'warning' },
+  blocked: { label: 'Blocked', color: 'warning' },
+  back_for_review: { label: 'Back for review', color: 'suggestion' },
+  in_review: { label: 'In review', color: 'inactive' },
+  approved: { label: 'Approved', color: 'success' },
+  draft: { label: 'Draft', color: 'inactive' },
+  merged: { label: 'Merged', color: 'success' },
+}
+const PR_ORDER = Object.keys(PR_STATUS) as TrackerStatus[]
+
+// What the filters let through: the merged window always applies to merged ones.
+function filterTracker(rows: TrackerRow[], f: PrFilters, now = Date.now()): TrackerRow[] {
+  const q = f.search.trim().toLowerCase()
+  const since = now - f.days * 86_400_000
+  return rows.filter(r =>
+    (r.status !== 'merged' || (Date.parse(r.at) || 0) >= since) &&
+    (f.show === 'all' || (f.show === 'merged') === (r.status === 'merged')) &&
+    (f.status === 'all' || r.status === f.status) &&
+    (f.repo === 'all' || r.label === f.repo) &&
+    (!q || `${r.label} #${r.number} ${r.title} ${r.tickets.map(t => t.key).join(' ')}`.toLowerCase().includes(q)))
+}
+
+function trackerCounts(rows: TrackerRow[], days: number, now = Date.now()) {
+  const since = now - days * 86_400_000
+  return {
+    open: rows.filter(r => r.status !== 'merged').length,
+    fixes: rows.filter(r => r.status === 'needs_fixes').length,
+    merged: rows.filter(r => r.status === 'merged' && (Date.parse(r.at) || 0) >= since).length,
+  }
+}
+
+// The counts and one line per pull request, for a status update or a message.
+function trackerText(rows: TrackerRow[], days: number): string {
+  const c = trackerCounts(rows, days)
+  const lines = [`PRs: ${c.open} open, ${c.fixes} need fixes, ${c.merged} merged in the last ${days} days`]
+  for (const st of PR_ORDER) {
+    const group = filterTracker(rows, { ...DEFAULT_PR_FILTERS, show: 'all', days: days as PrFilters['days'], status: st })
+    if (!group.length) continue
+    lines.push('', `${PR_STATUS[st].label} (${group.length})`)
+    for (const r of group) {
+      lines.push(`- ${r.label} #${r.number} ${r.tickets.map(t => t.key).join(', ') || r.title}${r.note ? `: ${r.note}` : ''}`)
+    }
+  }
+  return lines.join('\n')
 }
 
 // Tickets for the Scrum card: the collector's open-and-planned list, else (an older day file) the
@@ -585,7 +649,7 @@ async function load($: EngineInterface, day = today()) {
     await update($, view, old => old ?? {
       day, greeting: greeting(''), dayLabel: longDate(day), updated: '—', updatedIso: '', sources: [],
       needs: [], loggedMinutes: 0, minMinutes: 495, maxMinutes: 540, perTicket: [], week: [],
-      tickets: [], prs: [], board: [], questions: [], nextTicket: '', nextTicketUrl: '', primary: null, buttons: [], timeCommand: '', chatName: 'chat', reviewer: '', configPath: '', providers: [], scrum: EMPTY_SCRUM(day), error: 'No day file yet. Press Refresh.',
+      tickets: [], prs: [], board: [], questions: [], nextTicket: '', nextTicketUrl: '', primary: null, buttons: [], timeCommand: '', chatName: 'chat', reviewer: '', configPath: '', providers: [], scrum: EMPTY_SCRUM(day), tracker: null, trackerError: '', error: 'No day file yet. Press Refresh.',
     })
   }
 }
@@ -1117,6 +1181,13 @@ export const register: Register = on => {
     const settingsOpen = await read($, scrumSettingsOpen)
     const advancedOpen = await read($, scrumAdvancedOpen)
     const pickSet = sc.settings ?? DEFAULT_SETTINGS
+    const pf = { ...DEFAULT_PR_FILTERS, ...(await read($, prFilters)) }
+    const setPf = (patch: Partial<PrFilters>) => { void update($, prFilters, old => ({ ...DEFAULT_PR_FILTERS, ...old, ...patch })) }
+    const tracker = v.tracker ?? []
+    const prShown = filterTracker(tracker, pf)
+    const prCount = trackerCounts(tracker, pf.days)
+    const prRepos = [...new Set(tracker.map(r => r.label))]
+    const prFiltered = pf.show !== 'open' || pf.status !== 'all' || pf.repo !== 'all' || !!pf.search
 
     // Any filter change goes back to the first page.
     const setF = (patch: Partial<Filters>) => { void update($, filters, old => ({ ...old, ...patch, showAll: patch.showAll ?? false, page: patch.page ?? 0 })) }
@@ -1623,8 +1694,85 @@ export const register: Register = on => {
             </Card>
           )}
 
-          {/* PRs table */}
-          {v.prs.length > 0 && (
+          {/* PR tracker: open, needs fixes, merged; filters; grouped by status. An older day file has
+              no tracker, so the day's PR table shows instead. */}
+          {v.tracker !== null ? (
+            <Card id="prs" title="Pull requests" count={prCount.open}
+              summary={`${prCount.open} open · ${prCount.fixes} need fixes · ${prCount.merged} merged in ${pf.days} days`}>
+              {/* the counts are the main filter: press one to show just those */}
+              <Box gap={1} flexWrap="wrap" alignItems="center">
+                {([
+                  ['open', `Open ${prCount.open}`, pf.show === 'open' && pf.status === 'all', { show: 'open', status: 'all' }],
+                  ['fixes', `Needs fixes ${prCount.fixes}`, pf.status === 'needs_fixes', { show: 'open', status: 'needs_fixes' }],
+                  ['merged', `Merged ${prCount.merged} in ${pf.days}d`, pf.show === 'merged', { show: 'merged', status: 'all' }],
+                  ['all', 'All', pf.show === 'all' && pf.status === 'all', { show: 'all', status: 'all' }],
+                ] as const).map(([k, text, active, patch]) => (
+                  <Button key={`pr-count-${k}`} label={text}
+                    {...(active ? { variant: 'secondary' as const } : { plain: true as const })}
+                    onPress={() => setPf(patch)} />
+                ))}
+              </Box>
+              {v.trackerError && <Text size="caption" color="warning">{`Not refreshed: ${v.trackerError}`}</Text>}
+              <Box gap={1} flexWrap="wrap" marginTop={1} alignItems="center">
+                {Select && <Select key="pr-status" label="Status" value={pf.status}
+                  options={[{ value: 'all', label: 'All statuses' },
+                    ...PR_ORDER.map(st => ({ value: st, label: `${PR_STATUS[st].label} (${filterTracker(tracker, { ...pf, status: st, show: 'all' }).length})` }))]}
+                  onSelect={value => setPf({ status: value as PrFilters['status'] })} />}
+                {Select && prRepos.length > 1 && <Select key="pr-repo" label="Repo" value={pf.repo}
+                  options={[{ value: 'all', label: 'All repos' }, ...prRepos.map(r => ({ value: r, label: r }))]}
+                  onSelect={value => setPf({ repo: value })} />}
+                <Box gap={0} alignItems="center">
+                  <Text size="caption" color="inactive">Merged in</Text>
+                  {([7, 14, 30] as const).map(d => (
+                    <Button key={`pr-days-${d}`} label={`${d}d`}
+                      {...(pf.days === d ? { variant: 'secondary' as const } : { plain: true as const })}
+                      onPress={() => setPf({ days: d })} />
+                  ))}
+                </Box>
+              </Box>
+              {Input && (
+                <Box marginTop={1}>
+                  <Input key="pr-search" placeholder="Search PR number, ticket or title" value={pf.search} submitLabel="search"
+                    onInput={value => setPf({ search: value })} onSubmit={value => setPf({ search: value })} />
+                </Box>
+              )}
+              {prShown.length === 0 && <Box marginTop={1}><Text size="caption" color="inactive">
+                {tracker.length === 0 ? 'No pull requests of yours, open or merged lately.' : 'Nothing matches these filters.'}</Text></Box>}
+              {PR_ORDER.map(st => {
+                const group = prShown.filter(r => r.status === st)
+                if (!group.length) return null
+                return (
+                  <Box key={`pr-group-${st}`} flexDirection="column" marginTop={1}>
+                    <Box gap={1}>
+                      <Text size="caption" weight="semibold" color={PR_STATUS[st].color}>{PR_STATUS[st].label}</Text>
+                      <Text size="caption" color="inactive" tabular>{String(group.length)}</Text>
+                    </Box>
+                    {group.map(r => (
+                      <Box key={`pr-${r.label}-${r.number}`} hover={{ backgroundColor: ROW_HOVER }} gap={1} alignItems="center">
+                        <Box flexShrink={0} width={10}><Link href={r.url} label={`${r.label} #${r.number}`} /></Box>
+                        <Box flexShrink={0} gap={1}>
+                          {r.tickets.length ? r.tickets.map(t => t.url
+                            ? <Link key={`pr-t-${r.number}-${t.key}`} href={t.url} label={t.key} />
+                            : <Text key={`pr-t-${r.number}-${t.key}`} size="caption" mono>{t.key}</Text>)
+                            : <Text size="caption" color="inactive" wrap="truncate-end">{r.title}</Text>}
+                        </Box>
+                        <Box flexGrow={1} minWidth={0}><Text size="caption" color="inactive" wrap="truncate-end">{r.note}</Text></Box>
+                        <Box flexShrink={0}><Text size="caption" color="inactive" tabular>{r.at ? ago(r.at).replace(' ago', '') : ''}</Text></Box>
+                      </Box>
+                    ))}
+                  </Box>
+                )
+              })}
+              <Box gap={1} marginTop={1}>
+                <Button key="pr-copy" label="Copy summary" variant="secondary" onPress={press => {
+                  void $.ui.copy({ text: trackerText(tracker, pf.days), surface: press.surface })
+                    .then(res => $.ui.toast(res.isCopied ? 'PR summary copied.' : 'Could not copy.'))
+                }} />
+                {prFiltered && <Button key="pr-clear" label="Clear filters" plain onPress={() => setPf({ ...DEFAULT_PR_FILTERS, days: pf.days })} />}
+              </Box>
+            </Card>
+          ) : (
+          v.prs.length > 0 && (
             <Card id="prs" title="Pull requests" count={v.prs.length}
               summary={v.prs.map(r => `${r.pr} ${r.review}`).join(' · ')}>
               <Head cols={[['PR', '16%'], ['Tickets', undefined], ['Review', '26%'], ['State', '28%', true]]} />
@@ -1641,6 +1789,7 @@ export const register: Register = on => {
                 </Box>
               ))}
             </Card>
+          )
           )}
 
           {/* tickets table */}
