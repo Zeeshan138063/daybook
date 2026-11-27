@@ -82,6 +82,23 @@ export type ScrumPending = {
   key: string; move: 'start' | 'done'; preview: string; error: string; noPr: boolean
 }
 
+// The PR tracker: my open pull requests and the ones merged lately, each with a status.
+export type TrackerStatus = 'needs_fixes' | 'blocked' | 'back_for_review' | 'in_review' | 'approved' | 'draft' | 'merged'
+export type TrackerRow = {
+  repo: string; label: string; number: number; title: string; url: string
+  tickets: { key: string; url: string }[]
+  status: TrackerStatus; note: string; base: string
+  // when it was opened (open ones) or merged (merged ones), ISO
+  at: string
+}
+export type PrFilters = {
+  show: 'open' | 'merged' | 'all'
+  status: 'all' | TrackerStatus
+  repo: string
+  search: string
+  days: 7 | 14 | 30
+}
+
 export type View = {
   day: string
   greeting: string
@@ -111,6 +128,9 @@ export type View = {
   configPath: string
   providers: ProviderRow[]
   scrum: ScrumView
+  // the PR tracker; null when the day file predates it (the old table shows instead)
+  tracker: TrackerRow[] | null
+  trackerError: string
   error?: string
 }
 
@@ -147,6 +167,7 @@ declare module 'claude-code' {
       scrumAllBlockers: Shaped<boolean>
       scrumSettingsOpen: Shaped<boolean>
       scrumAdvancedOpen: Shaped<boolean>
+      prFilters: Shaped<PrFilters>
     }
   }
 }

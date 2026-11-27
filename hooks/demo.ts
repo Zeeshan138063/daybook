@@ -116,7 +116,23 @@ export function demoLedger(day: string) {
   return {
     day, gathered_at: fresh,
     sources: { github: ok, git: ok, jira: ok, teams: ok, outlook: ok },
-    github: { login: 'alex-example', prs },
+    github: {
+      login: 'alex-example', prs,
+      tracker: [
+        { repo: 'example/app', label: 'APP', number: 42, title: 'PROJ-104 to 106: import, share links, settings',
+          url: 'https://github.com/example/app/pull/42', tickets: ['PROJ-104', 'PROJ-105', 'PROJ-106'],
+          status: 'needs_fixes', note: `Sam: 3 comments · ${day}`, base: 'develop', created_at: at(day, '08:00'), merged_at: null },
+        { repo: 'example/app', label: 'APP', number: 43, title: 'PROJ-107: full-text search',
+          url: 'https://github.com/example/app/pull/43', tickets: ['PROJ-107'], status: 'blocked',
+          note: 'waits for APP #42', base: 'feature/PROJ-104', created_at: at(day, '09:00'), merged_at: null },
+        { repo: 'example/web', label: 'WEB', number: 41, title: 'PROJ-110: editor with autosave',
+          url: 'https://github.com/example/web/pull/41', tickets: ['PROJ-110'], status: 'approved',
+          note: 'ready to merge', base: 'develop', created_at: at(day, '07:30'), merged_at: null },
+        { repo: 'example/app', label: 'APP', number: 39, title: 'PROJ-101 to 103: folders and export',
+          url: 'https://github.com/example/app/pull/39', tickets: ['PROJ-101', 'PROJ-102', 'PROJ-103'],
+          status: 'merged', note: '', base: 'develop', created_at: at(day, '07:00'), merged_at: at(day, '08:50') },
+      ],
+    },
     jira: { tickets, board, logged_today_minutes: logged, week_minutes },
     teams: {
       asks_for_me: [{ from: 'Robin Example', text: 'Can you pair on the import edge cases after lunch?',

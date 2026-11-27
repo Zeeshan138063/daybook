@@ -126,6 +126,17 @@
                   "additionalProperties": false
                 }
               ]
+            },
+            "account": {
+              "type": "string",
+              "description": "The gh account to read with (gh auth login can hold several). Its token is used for the gather only, so the active account never decides whose pull requests are read."
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Short labels for repositories in the PR tracker, e.g. {\"org/app-api\": \"API\"}. Default: the last word of the name when short."
             }
           }
         },
@@ -512,7 +523,7 @@
         "type": "string",
         "format": "email"
       },
-      "description": "Name → email, used for the chat's 'Send in …' link, which opens a chat with that person and the question typed in. Nothing is sent until you press send."
+      "description": "Name \u2192 email, used for the chat's 'Send in \u2026' link, which opens a chat with that person and the question typed in. Nothing is sent until you press send."
     },
     "questions_since": {
       "type": "string",

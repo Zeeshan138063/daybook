@@ -2,6 +2,22 @@
 
 All notable changes are listed here. Versions follow [semantic versioning](https://semver.org).
 
+## 0.6.1
+
+- The PR tracker's counts are its filter: press Open, Needs fixes or Merged to show just those;
+  the one in use is highlighted. All shows everything.
+
+## 0.6.0
+
+- New: a **PR tracker** in the Pull requests card. One line says how many are open, how many need
+  fixes, and how many merged lately. Pull requests are grouped by status: Needs fixes (reviewer
+  comments newer than your last push), Blocked (conflicts, or stacked on one still open: "waits for
+  API #623"), Back for review, In review, Approved, Draft, Merged.
+- Filters on the card: Open, Merged or All; status; repository; search by number, ticket or title;
+  and the merged window (7, 14 or 30 days). Copy summary gives the counts and a line per PR.
+- `providers.code.account` names the gh account to read with, so the active account never decides
+  whose pull requests are read.
+
 ## 0.5.0
 
 - New: **How today is picked**, a screen in the Scrum card. Start from a preset (Most urgent first,

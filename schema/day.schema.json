@@ -119,6 +119,81 @@
               }
             }
           }
+        },
+        "tracker": {
+          "description": "The PR tracker: my open pull requests and the ones merged in the last 30 days, each with a status.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "repo",
+              "label",
+              "number",
+              "status"
+            ],
+            "properties": {
+              "repo": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "number": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "tickets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "status": {
+                "enum": [
+                  "needs_fixes",
+                  "blocked",
+                  "back_for_review",
+                  "in_review",
+                  "approved",
+                  "draft",
+                  "merged"
+                ]
+              },
+              "note": {
+                "type": "string"
+              },
+              "base": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "merged_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "tracker_error": {
+          "type": "string",
+          "description": "Why the tracker could not be read at this gather."
         }
       }
     },
